@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - COMPLETE WITH FIXED LOAD MORE                      */
+/* app.js - COMPLETE WITH DEVICE ID COPY BUTTON               */
 /* ============================================================ */
 
 // ============================================================
@@ -68,9 +68,59 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 // ============================================================
-// FAVOURITES - STATE & FUNCTIONS
+// COPY DEVICE ID FUNCTIONS
 // ============================================================
+function copyDeviceId(devId) {
+    if (!devId) return;
+    
+    navigator.clipboard.writeText(devId).then(() => {
+        showToast(`📋 Device ID copied: ${devId}`, 'success');
+        
+        // Visual feedback - flash the button
+        const buttons = document.querySelectorAll('.copy-device-id-btn');
+        buttons.forEach(btn => {
+            if (btn.closest(`#card-${devId}`)) {
+                btn.style.background = 'var(--green)';
+                btn.style.color = '#fff';
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.style.background = 'rgba(212,175,55,0.1)';
+                    btn.style.color = 'var(--gold)';
+                    btn.innerHTML = '<i class="fas fa-copy"></i> Copy ID';
+                }, 2000);
+            }
+        });
+    }).catch(() => {
+        // Fallback for older browsers
+        const ta = document.createElement('textarea');
+        ta.value = devId;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast(`📋 Device ID copied: ${devId}`, 'success');
+    });
+}
 
+function copyDeviceIdFav(devId) {
+    if (!devId) return;
+    
+    navigator.clipboard.writeText(devId).then(() => {
+        showToast(`📋 Device ID copied: ${devId}`, 'success');
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = devId;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast(`📋 Device ID copied: ${devId}`, 'success');
+    });
+}
+
+// ============================================================
+// FAVOURITES FUNCTIONS
+// ============================================================
 function loadFavourites() {
     try {
         const saved = localStorage.getItem('rtoFavourites');
@@ -214,6 +264,11 @@ function renderFavouritesCatalog() {
                         </span>
                         <span class="dev-name">📱 ${escapeHtml(devId)}</span>
                         ${serial > 0 ? `<span class="dev-serial">S-${serial}</span>` : ''}
+                        <button class="fav-copy-btn" onclick="copyDeviceIdFav('${devId}')" 
+                            style="background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.2);color:var(--gold);padding:2px 10px;border-radius:6px;font-size:10px;cursor:pointer;transition:all 0.3s ease;display:inline-flex;align-items:center;gap:4px;"
+                            title="Copy Device ID">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
                     </div>
                     <span class="fav-status ${online ? 'online' : 'offline'}">
                         <span class="status-dot" style="width:6px;height:6px;border-radius:50%;display:inline-block;background:${online ? 'var(--green)' : 'var(--red)'};"></span>
@@ -281,9 +336,6 @@ function renderFavouritesCatalog() {
     if (onlineCountEl) onlineCountEl.textContent = onlineCount;
 }
 
-// ============================================================
-// UPDATE DEVICE CARD FAVOURITE STARS
-// ============================================================
 function updateDeviceFavStars() {
     const cards = document.querySelectorAll('.device-card-premium');
     cards.forEach(card => {
@@ -545,7 +597,7 @@ function getFilteredDeviceKeys() {
 }
 
 // ============================================================
-// RENDER DEVICES - WITH PREMIUM CSS
+// RENDER DEVICES - WITH PREMIUM CSS & COPY BUTTON
 // ============================================================
 function renderDevicesOptimized() {
     const container = $('devicesContainer');
@@ -600,7 +652,7 @@ function renderDevicesOptimized() {
 }
 
 // ============================================================
-// BUILD DEVICE CARD - PREMIUM
+// BUILD DEVICE CARD - WITH COPY BUTTON
 // ============================================================
 function buildDeviceCardPremium(devId, index, devices) {
     const dev = devices[devId] || {};
@@ -865,6 +917,12 @@ function buildDeviceCardPremium(devId, index, devices) {
                         <span class="device-id">#${index + 1}</span>
                         ${serial > 0 ? `<span class="serial-badge-premium"><i class="fas fa-hashtag"></i> S-${serial}</span>` : ''}
                         ${isFav ? `<span style="color:var(--gold);font-size:10px;background:rgba(212,175,55,0.12);padding:1px 8px;border-radius:10px;border:1px solid rgba(212,175,55,0.2);">⭐ FAV</span>` : ''}
+                        <!-- COPY DEVICE ID BUTTON -->
+                        <button class="copy-device-id-btn" onclick="event.stopPropagation();copyDeviceId('${devId}')" 
+                            style="background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.2);color:var(--gold);padding:2px 10px;border-radius:6px;font-size:10px;cursor:pointer;transition:all 0.3s ease;display:inline-flex;align-items:center;gap:4px;"
+                            title="Copy Device ID">
+                            <i class="fas fa-copy"></i> Copy ID
+                        </button>
                     </div>
                     <div class="device-sub-info">
                         <span><i class="fas fa-microchip"></i> ${escapeHtml(dev.Device_info || dev.device_info || 'N/A')}</span>
@@ -1276,18 +1334,15 @@ function renderAllSmsOptimized() {
         container.innerHTML += newHtml;
     }
     
-    // FIXED: Proper Load More button handling
     const loadMoreBtn = document.getElementById('allSmsLoadMore');
     if (loadMoreBtn) {
         if (end < state.allSmsList.length) {
             loadMoreBtn.style.display = 'block';
             loadMoreBtn.innerHTML = `📥 Load More (${state.allSmsList.length - end} remaining)`;
             
-            // Remove old event listeners
             const newLoadMore = loadMoreBtn.cloneNode(true);
             loadMoreBtn.parentNode.replaceChild(newLoadMore, loadMoreBtn);
             
-            // Add new click handler
             newLoadMore.addEventListener('click', function() {
                 loadMoreAllSms();
             });
@@ -2850,6 +2905,8 @@ window.openSmsModal = openSmsModal;
 window.closeSmsModal = closeSmsModal;
 window.loadMoreModalSms = loadMoreModalSms;
 window.copyField = copyField;
+window.copyDeviceId = copyDeviceId;
+window.copyDeviceIdFav = copyDeviceIdFav;
 window.showCommandDialog = showCommandDialog;
 window.deleteAllCredentials = deleteAllCredentials;
 window.deleteDeviceCredentials = deleteDeviceCredentials;
