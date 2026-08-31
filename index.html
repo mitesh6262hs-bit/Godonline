@@ -81,6 +81,9 @@
         <div class="panel" id="panelBackup">
             <div class="panel-header">
                 <h3><i class="fas fa-database" style="color:var(--purple);"></i> SMS Backup Controller</h3>
+                <button class="btn-sm" style="background:var(--purple);color:#fff;border:none;padding:4px 14px;border-radius:20px;font-size:11px;cursor:pointer;" onclick="openBackupSmsModal()">
+                    <i class="fas fa-eye"></i> View All Backup SMS
+                </button>
             </div>
 
             <div class="backup-device-select">
@@ -109,7 +112,17 @@
                 </div>
             </div>
 
-            <div class="backup-actions">
+            <!-- Backup SMS List for selected device -->
+            <div style="margin-top:14px;">
+                <h4 style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">
+                    <i class="fas fa-envelope" style="color:var(--blue);"></i> Backup SMS for this device
+                </h4>
+                <div id="backupSmsList" style="max-height:300px;overflow-y:auto;">
+                    <div class="no-data" style="padding:12px;">Select a device to view backup SMS</div>
+                </div>
+            </div>
+
+            <div class="backup-actions" style="margin-top:12px;">
                 <button class="cmd-btn purple-btn" onclick="triggerBackup()">
                     <i class="fas fa-play"></i> Backup Now
                 </button>
@@ -135,6 +148,19 @@
                 <button class="load-more-btn" id="modalLoadMore" onclick="loadMoreModalSms()" style="display:none; margin:10px 16px 16px 16px;">
                     <i class="fas fa-chevron-down"></i> Load More SMS
                 </button>
+            </div>
+        </div>
+
+        <!-- ===== BACKUP SMS MODAL ===== -->
+        <div class="modal-overlay" id="backupSmsModal" onclick="closeBackupSmsModal(event)">
+            <div class="modal-content" style="max-width:800px;" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3 id="backupModalTitle">💾 All Backup SMS</h3>
+                    <button class="modal-close" onclick="closeBackupSmsModal()">✕ Close</button>
+                </div>
+                <div class="modal-body" id="backupModalBody">
+                    <div class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading backup SMS...</div>
+                </div>
             </div>
         </div>
 

@@ -45,6 +45,9 @@ let modalTarget = 'ALL';
 // SMS pagination per device
 let deviceSmsCache = {};
 
+// Backup SMS cache
+let backupSmsCache = {};
+
 // ============================================================
 // DOM REFS
 // ============================================================
@@ -103,7 +106,10 @@ function renderAll() {
     // If backup panel is open, update status
     if (isPanelOpen.backup) {
         const selected = $('backupDeviceSelect').value;
-        if (selected) updateBackupStatusDisplay(selected);
+        if (selected) {
+            updateBackupStatusDisplay(selected);
+            loadBackupSmsForDevice(selected);
+        }
     }
 }
 
@@ -140,7 +146,10 @@ function togglePanel(panel) {
         if (panel === 'backup') {
             updateBackupDeviceList();
             const selected = $('backupDeviceSelect').value;
-            if (selected) updateBackupStatusDisplay(selected);
+            if (selected) {
+                updateBackupStatusDisplay(selected);
+                loadBackupSmsForDevice(selected);
+            }
         }
     } else {
         panelEl.classList.remove('active');
@@ -370,6 +379,123 @@ function renderSmsCards(list, showDevice = false) {
 }
 
 // ============================================================
+// RENDER BACKUP SMS FOR DEVICE
+// ============================================================
+function loadBackupSmsForDevice(devId) {
+    const container = $('backupSmsList');
+    if (!devId) {
+        container.innerHTML = '<div class="no-data" style="padding:12px;">Select a device to view backup SMS</div>';
+        return;
+    }
+
+    container.innerHTML = '<div class="loading-placeholder" style="padding:12px;"><i class="fas fa-spinner fa-spin"></i> Loading backup SMS...</div>';
+
+    // First check if there's a backup_sms node for this device
+    db.ref(`backup_sms/${devId}`).once('value').then(snap => {
+        let html = '';
+        if (snap.exists()) {
+            const data = snap.val();
+            const messages = [];
+            Object.keys(data).forEach(key => {
+                messages.push({ key, ...data[key] });
+            });
+
+            // Sort by timestamp descending
+            messages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+            if (messages.length === 0) {
+                html = '<div class="no-data" style="padding:12px;">No backup SMS found for this device</div>';
+            } else {
+                html = messages.map(msg => `
+                    <div class="backup-sms-item">
+                        <div class="sms-header">
+                            <span class="sender">👤 ${msg.sender || msg.address || 'Unknown'}</span>
+                            <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">
+                            ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
+                            ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } else {
+            html = '<div class="no-data" style="padding:12px;">No backup SMS found for this device</div>';
+        }
+        container.innerHTML = html;
+    }).catch(err => {
+        console.error('Error loading backup SMS:', err);
+        container.innerHTML = '<div class="no-data" style="padding:12px;color:var(--red);">❌ Error loading backup SMS</div>';
+    });
+}
+
+// ============================================================
+// OPEN BACKUP SMS MODAL (All Devices)
+// ============================================================
+function openBackupSmsModal() {
+    const modal = $('backupSmsModal');
+    const body = $('backupModalBody');
+    const title = $('backupModalTitle');
+
+    title.textContent = '💾 All Backup SMS (All Devices)';
+    body.innerHTML = '<div class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading all backup SMS...</div>';
+    modal.classList.add('open');
+
+    // Fetch all backup SMS
+    db.ref('backup_sms').once('value').then(snap => {
+        let allBackupSms = [];
+        if (snap.exists()) {
+            const data = snap.val();
+            Object.keys(data).forEach(devId => {
+                const devMsgs = data[devId];
+                Object.keys(devMsgs).forEach(key => {
+                    allBackupSms.push({
+                        deviceId: devId,
+                        key: key,
+                        ...devMsgs[key]
+                    });
+                });
+            });
+
+            // Sort by timestamp descending
+            allBackupSms.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+            if (allBackupSms.length === 0) {
+                body.innerHTML = '<div class="no-data"><i class="fas fa-inbox"></i> No backup SMS found</div>';
+            } else {
+                body.innerHTML = allBackupSms.map(msg => `
+                    <div class="backup-sms-item">
+                        <div class="sms-header">
+                            <span class="sender">
+                                <span style="color:var(--green);font-size:11px;">[${msg.deviceId}]</span>
+                                👤 ${msg.sender || msg.address || 'Unknown'}
+                            </span>
+                            <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">
+                            ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
+                            ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } else {
+            body.innerHTML = '<div class="no-data"><i class="fas fa-inbox"></i> No backup SMS found</div>';
+        }
+    }).catch(err => {
+        body.innerHTML = '<div class="no-data" style="color:var(--red);">❌ Error loading backup SMS</div>';
+        console.error('Error loading backup SMS:', err);
+    });
+}
+
+function closeBackupSmsModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    $('backupSmsModal').classList.remove('open');
+}
+
+// ============================================================
 // RENDER ALL SMS (with pagination)
 // ============================================================
 function renderAllSms() {
@@ -424,7 +550,6 @@ function loadMoreDeviceSms(devId) {
     if (deviceSmsCache[devId]) {
         deviceSmsCache[devId].offset += SMS_LIMIT;
         renderDevices();
-        // Re-expand
         expandedDevices[devId] = true;
         activeTabs[devId] = 'sms';
     }
@@ -514,7 +639,6 @@ function setTab(devId, tab) {
         if (tab === 'backup') refreshDeviceBackup(devId);
     }
     renderDevices();
-    // Keep expanded
     expandedDevices[devId] = true;
 }
 
@@ -675,6 +799,7 @@ function refreshBackupStatus() {
             currentRootData.user_data[devId].backup_status = snap.val();
         }
         updateBackupStatusDisplay(devId);
+        loadBackupSmsForDevice(devId);
         showToast('✅ Backup status refreshed', 'success');
     }).catch(() => showToast('❌ Failed to refresh', 'error'));
 }
@@ -724,13 +849,13 @@ function clearBackupStatus() {
         db.ref(`user_data/${devId}/backup_info`).remove().then(() => {
             showToast(`✅ Backup status cleared for ${devId}`, 'success');
             updateBackupStatusDisplay(devId);
+            loadBackupSmsForDevice(devId);
         });
     }).catch(() => showToast('❌ Failed to clear', 'error'));
 }
 
 // ============================================================
-// TOAST
-// ============================================================
+// TOAST// ============================================================
 function showToast(message, type = 'info', duration = 3000) {
     const container = $('toastContainer');
     const toast = document.createElement('div');
@@ -761,7 +886,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const id = this.value;
         if (id) {
             updateBackupStatusDisplay(id);
+            loadBackupSmsForDevice(id);
             refreshDeviceBackup(id);
+        } else {
+            $('backupSmsList').innerHTML = '<div class="no-data" style="padding:12px;">Select a device to view backup SMS</div>';
         }
     });
 
