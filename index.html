@@ -1,263 +1,125 @@
-<!-- ============================================================ -->
-<!-- index.html - Luxury Admin Panel with Fixed Features          -->
-<!-- ============================================================ -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Luxury Admin Panel</title>
-
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
-
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
-
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
-    </script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js">
-    </script>
-
-    <!-- External CSS -->
-    <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 
-    <div class="app-wrapper">
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
 
-        <!-- ===== TOP BAR ===== -->
-        <header class="top-bar">
-            <div class="brand">
-                <span class="brand-icon">✦</span>
-                <span class="brand-name">RTO<em>Luxury</em></span>
-                <span class="brand-badge">v3.0</span>
-            </div>
-            <div class="top-right">
-                <div class="connection-status" id="statusBadge">
-                    <span class="dot"></span>
-                    <span id="statusText">Connecting...</span>
-                </div>
-                <div class="profile-avatar">
-                    <i class="fas fa-user-cog"></i>
-                </div>
-            </div>
-        </header>
-
-        <!-- ===== MAIN LAYOUT ===== -->
-        <div class="main-layout">
-
-            <!-- ===== SIDEBAR ===== -->
-            <aside class="sidebar">
-                <nav class="sidebar-nav">
-                    <button class="nav-item active" data-panel="devices" onclick="togglePanel('devices')">
-                        <i class="fas fa-mobile-alt"></i>
-                        <span>Devices</span>
-                        <span class="nav-badge" id="deviceCount">0</span>
-                    </button>
-                    <button class="nav-item" data-panel="sms" onclick="togglePanel('sms')">
-                        <i class="fas fa-envelope"></i>
-                        <span>Messages</span>
-                        <span class="nav-badge" id="smsCount">0</span>
-                    </button>
-                    <button class="nav-item" data-panel="backup" onclick="togglePanel('backup')">
-                        <i class="fas fa-database"></i>
-                        <span>Backup</span>
-                        <span class="nav-badge" id="backupStatusBadge">Ready</span>
-                    </button>
-                    <button class="nav-item" data-panel="analytics" onclick="togglePanel('analytics')">
-                        <i class="fas fa-chart-pie"></i>
-                        <span>Analytics</span>
-                    </button>
-                </nav>
-                <div class="sidebar-footer">
-                    <div class="user-info">
-                        <i class="fas fa-user-circle"></i>
-                        <span>Admin</span>
-                    </div>
-                </div>
-            </aside>
-
-            <!-- ===== CONTENT AREA ===== -->
-            <main class="content-area">
-
-                <!-- ===== DEVICES PANEL ===== -->
-                <div class="panel active" id="panelDevices">
-                    <div class="panel-header">
-                        <div>
-                            <h2><i class="fas fa-mobile-alt" style="color:var(--gold);"></i> Registered Devices</h2>
-                            <p class="panel-sub">Click on any device to expand & view details</p>
-                        </div>
-                        <div class="panel-stats">
-                            <button class="filter-btn" onclick="filterDevices('all')" id="filterAll">All</button>
-                            <button class="filter-btn" onclick="filterDevices('online')" id="filterOnline">🟢 Online</button>
-                            <button class="filter-btn" onclick="filterDevices('offline')" id="filterOffline">🔴 Offline</button>
-                            <span class="stat-item"><i class="fas fa-users"></i> <span id="panelDeviceCount">0</span></span>
-                        </div>
-                    </div>
-                    <div id="devicesContainer">
-                        <div class="loading-luxury"><span class="loader-ring"></span> Loading devices...</div>
-                    </div>
-                </div>
-
-                <!-- ===== SMS PANEL ===== -->
-                <div class="panel" id="panelSms">
-                    <div class="panel-header">
-                        <div>
-                            <h2><i class="fas fa-envelope" style="color:var(--gold);"></i> All Messages</h2>
-                            <p class="panel-sub">Click on device ID to filter messages</p>
-                        </div>
-                        <div class="panel-stats">
-                            <span class="stat-item"><i class="fas fa-envelope"></i> <span id="panelSmsCount">0</span></span>
-                            <button class="btn-sm" onclick="clearSmsFilter()" id="clearSmsFilterBtn" style="display:none;background:var(--red);color:#fff;border:none;padding:2px 12px;border-radius:20px;font-size:10px;cursor:pointer;">✕ Clear Filter</button>
-                        </div>
-                    </div>
-                    <div id="allSmsContainer">
-                        <div class="loading-luxury"><span class="loader-ring"></span> Loading messages...</div>
-                    </div>
-                    <button class="btn-load-more" id="allSmsLoadMore" onclick="loadMoreAllSms()" style="display:none;">
-                        <i class="fas fa-chevron-down"></i> Load More Messages
-                    </button>
-                </div>
-
-                <!-- ===== BACKUP PANEL ===== -->
-                <div class="panel" id="panelBackup">
-                    <div class="panel-header">
-                        <div>
-                            <h2><i class="fas fa-database" style="color:var(--gold);"></i> Backup Vault</h2>
-                            <p class="panel-sub">Secure SMS backup management</p>
-                        </div>
-                        <button class="btn-gold" onclick="openBackupSmsModal()">
-                            <i class="fas fa-eye"></i> View All Backups
-                        </button>
-                    </div>
-
-                    <div class="backup-grid">
-                        <div class="backup-selector">
-                            <label>Select Device</label>
-                            <select id="backupDeviceSelect" class="luxury-select">
-                                <option value="">— Select a device —</option>
-                            </select>
-                        </div>
-
-                        <div class="backup-status-card">
-                            <div class="status-item">
-                                <span class="status-label">Status</span>
-                                <span class="status-value" id="backupStatusValue">No backup</span>
-                            </div>
-                            <div class="status-item">
-                                <span class="status-label">Last Backup</span>
-                                <span class="status-value" id="backupLastTime">Never</span>
-                            </div>
-                            <div class="status-item">
-                                <span class="status-label">SMS Count</span>
-                                <span class="status-value" id="backupSmsCount">0</span>
-                            </div>
-                            <div class="status-item">
-                                <span class="status-label">Backup ID</span>
-                                <span class="status-value" id="backupId" style="font-size:11px;color:var(--text-muted);">N/A</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="backup-sms-section">
-                        <h4><i class="fas fa-envelope" style="color:var(--gold);"></i> Backup Messages</h4>
-                        <div id="backupSmsList" class="backup-sms-list">
-                            <div class="empty-luxury">Select a device to view backup messages</div>
-                        </div>
-                    </div>
-
-                    <div class="backup-actions-luxury">
-                        <button class="btn-luxury btn-purple" onclick="triggerBackup()">
-                            <i class="fas fa-play"></i> Backup Now
-                        </button>
-                        <button class="btn-luxury btn-blue" onclick="refreshBackupStatus()">
-                            <i class="fas fa-sync"></i> Refresh
-                        </button>
-                        <button class="btn-luxury btn-red" onclick="clearBackupStatus()">
-                            <i class="fas fa-trash"></i> Clear
-                        </button>
-                    </div>
-                </div>
-
-                <!-- ===== ANALYTICS PANEL ===== -->
-                <div class="panel" id="panelAnalytics">
-                    <div class="panel-header">
-                        <div>
-                            <h2><i class="fas fa-chart-pie" style="color:var(--gold);"></i> Analytics Dashboard</h2>
-                            <p class="panel-sub">Real-time statistics & insights</p>
-                        </div>
-                    </div>
-                    <div class="analytics-grid" id="analyticsContainer">
-                        <div class="analytics-card">
-                            <div class="analytics-icon"><i class="fas fa-mobile-alt"></i></div>
-                            <div class="analytics-info">
-                                <span class="analytics-label">Total Devices</span>
-                                <span class="analytics-value" id="analyticsTotalDevices">0</span>
-                            </div>
-                        </div>
-                        <div class="analytics-card">
-                            <div class="analytics-icon"><i class="fas fa-envelope"></i></div>
-                            <div class="analytics-info">
-                                <span class="analytics-label">Total SMS</span>
-                                <span class="analytics-value" id="analyticsTotalSms">0</span>
-                            </div>
-                        </div>
-                        <div class="analytics-card">
-                            <div class="analytics-icon"><i class="fas fa-database"></i></div>
-                            <div class="analytics-info">
-                                <span class="analytics-label">Backup SMS</span>
-                                <span class="analytics-value" id="analyticsBackupSms">0</span>
-                            </div>
-                        </div>
-                        <div class="analytics-card">
-                            <div class="analytics-icon"><i class="fas fa-clock"></i></div>
-                            <div class="analytics-info">
-                                <span class="analytics-label">Last Activity</span>
-                                <span class="analytics-value" id="analyticsLastActivity">—</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </main>
+    <!-- Header / Navbar -->
+    <header class="header">
+        <div class="logo">📱 Admin Panel</div>
+        <div class="status-container">
+            <span id="statusBadge" class="connection-status offline"></span>
+            <span id="statusText">Connecting...</span>
         </div>
+    </header>
 
-        <!-- ===== MODALS ===== -->
+    <!-- Main Navigation -->
+    <nav class="nav-bar">
+        <button class="nav-item active" data-panel="devices" onclick="togglePanel('devices')">
+            📱 Devices (<span id="deviceCount">0</span>)
+        </button>
+        <button class="nav-item" data-panel="sms" onclick="togglePanel('sms')">
+            💬 SMS (<span id="smsCount">0</span>)
+        </button>
 
-        <!-- SMS Modal -->
-        <div class="modal-luxury" id="smsModal" onclick="closeSmsModal(event)">
-            <div class="modal-luxury-content" onclick="event.stopPropagation()">
-                <div class="modal-luxury-header">
-                    <h3 id="modalTitle">📩 Messages</h3>
-                    <button class="modal-luxury-close" onclick="closeSmsModal()">✕</button>
+        <button class="nav-item" data-panel="backup" onclick="togglePanel('backup')">
+            💾 Backup
+        </button>
+        <button class="nav-item" data-panel="analytics" onclick="togglePanel('analytics')">
+            📊 Analytics
+        </button>
+    </nav>
+
+    <main class="main-content">
+        <!-- DEVICES PANEL -->
+        <section id="panelDevices" class="panel active">
+            <div class="panel-header">
+                <h2>Devices (<span id="panelDeviceCount">0</span>)</h2>
+                <div class="filter-group">
+                    <button id="filterAll" class="filter-btn active" onclick="filterDevices('all')">All</button>
+                    <button id="filterOnline" class="filter-btn" onclick="filterDevices('online')">Online</button>
+                    <button id="filterOffline" class="filter-btn" onclick="filterDevices('offline')">Offline</button>
                 </div>
-                <div class="modal-luxury-body" id="modalBody">
-                    <div class="loading-luxury"><span class="loader-ring"></span> Loading...</div>
-                </div>
-                <button class="btn-load-more" id="modalLoadMore" onclick="loadMoreModalSms()" style="display:none;">
-                    <i class="fas fa-chevron-down"></i> Load More
-                </button>
             </div>
-        </div>
+            <div id="devicesContainer" class="devices-grid"></div>
+        </section>
 
-        <!-- Backup SMS Modal -->
-        <div class="modal-luxury" id="backupSmsModal" onclick="closeBackupSmsModal(event)">
-            <div class="modal-luxury-content" style="max-width:800px;" onclick="event.stopPropagation()">
-                <div class="modal-luxury-header">
-                    <h3 id="backupModalTitle">💾 All Backup Messages</h3>
-                    <button class="modal-luxury-close" onclick="closeBackupSmsModal()">✕</button>
-                </div>
-                <div class="modal-luxury-body" id="backupModalBody">
-                    <div class="loading-luxury"><span class="loader-ring"></span> Loading backups...</div>
-                </div>
+        <!-- SMS PANEL -->
+        <section id="panelSms" class="panel">
+            <div class="panel-header">
+                <h2>All SMS (<span id="panelSmsCount">0</span>)</h2>
+                <button id="clearSmsFilterBtn" class="btn-luxury btn-red" style="display:none;" onclick="clearSmsFilter()">Clear Filter</button>
             </div>
+            <div id="allSmsContainer" class="sms-list-luxury"></div>
+            <button id="allSmsLoadMore" class="btn-load-more" style="display:none;" onclick="loadMoreAllSms()">Load More</button>
+        </section>
+
+        <!-- BACKUP PANEL -->
+        <section id="panelBackup" class="panel">
+            <h2>Backup Management</h2>
+            <div class="backup-controls">
+                <select id="backupDeviceSelect">
+                    <option value="">— Select a device —</option>
+                </select>
+                <button class="btn-luxury btn-purple" onclick="triggerBackup()">Trigger Backup</button>
+                <button class="btn-luxury btn-blue" onclick="refreshBackupStatus()">Refresh Status</button>
+                <button class="btn-luxury btn-red" onclick="clearBackupStatus()">Clear</button>
+                <button class="btn-luxury" style="background:var(--gold);color:#000;" onclick="openBackupSmsModal()">View All Backups</button>
+            </div>
+            <div class="backup-info-card" style="margin-top: 15px;">
+                <div>Status: <span id="backupStatusValue" class="status-value">—</span> <span id="backupStatusBadge"></span></div>
+                <div>Last Backup: <span id="backupLastTime">—</span></div>
+                <div>Total SMS Backed Up: <span id="backupSmsCount">0</span></div>
+                <div>Backup ID: <span id="backupId">N/A</span></div>
+            </div>
+            <div id="backupSmsList" class="sms-list-luxury" style="margin-top:15px;"></div>
+        </section>
+
+        <!-- ANALYTICS PANEL -->
+        <section id="panelAnalytics" class="panel">
+            <h2>System Analytics</h2>
+            <div class="analytics-grid">
+                <div class="analytic-card">Total Devices: <b id="analyticsTotalDevices">0</b></div>
+                <div class="analytic-card">Total SMS: <b id="analyticsTotalSms">0</b></div>
+                <div class="analytic-card">Total Backups: <b id="analyticsBackupSms">0</b></div>
+                <div class="analytic-card">Last Activity: <b id="analyticsLastActivity">—</b></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- SMS MODAL -->
+    <div id="smsModal" class="modal-overlay" onclick="closeSmsModal(event)">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Messages</h3>
+                <button class="close-btn" onclick="closeSmsModal()">&times;</button>
+            </div>
+            <div id="modalBody" class="modal-body"></div>
+            <button id="modalLoadMore" class="btn-load-more" style="display:none;" onclick="renderModalSms()">Load More</button>
         </div>
+    </div>
 
-        <!-- Toast Container -->
-        <div id="toastContainer"></div>
-
+    <!-- BACKUP SMS MODAL -->
+    <div id="backupSmsModal" class="modal-overlay" onclick="closeBackupSmsModal(event)">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="backupModalTitle">Backup Messages</h3>
+                <button class="close-btn" onclick="closeBackupSmsModal()">&times;</button>
+            </div>
+            <div id="backupModalBody" class="modal-body"></div>
+        </div>
     </div>
 
     <script src="app.js"></script>
