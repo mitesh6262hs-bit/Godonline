@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - COMPLETE FIXED - NO BLINK, NO DUPLICATES          */
+/* app.js - COMPLETE WITH ALL MOBILE ENHANCEMENTS              */
 /* ============================================================ */
 
 // ============================================================
@@ -141,6 +141,25 @@ function updateCaches() {
             state.deviceSerialMap.set(devId, serial);
         }
     });
+    
+    // Update mobile badge
+    updateMobileBadge();
+}
+
+// ============================================================
+// UPDATE MOBILE BADGE
+// ============================================================
+function updateMobileBadge() {
+    const smsData = state.data.user_sms || {};
+    let totalSms = 0;
+    Object.keys(smsData).forEach(d => {
+        totalSms += Object.keys(smsData[d]).length;
+    });
+    const badge = $('mobileSmsBadge');
+    if (badge) {
+        badge.textContent = totalSms;
+        badge.style.display = totalSms > 0 ? 'block' : 'none';
+    }
 }
 
 // ============================================================
@@ -214,6 +233,8 @@ function updateCounts() {
         const panelSmsCount = $('panelSmsCount');
         if (panelSmsCount) panelSmsCount.textContent = totalSms;
     }
+    
+    updateMobileBadge();
 }
 
 // ============================================================
@@ -271,7 +292,6 @@ function renderDevicesOptimized() {
         return;
     }
     
-    // Ensure offset is valid
     if (state.deviceOffset >= keys.length) {
         state.deviceOffset = Math.max(0, keys.length - DEVICE_LIMIT);
     }
@@ -282,7 +302,6 @@ function renderDevicesOptimized() {
     const hasMore = end < keys.length;
     const hasPrev = state.deviceOffset > 0;
     
-    // Build HTML
     let finalHtml = '';
     
     if (hasPrev) {
@@ -393,6 +412,9 @@ function buildDeviceCard(devId, index, devices) {
     
     return `
         <div class="device-card-luxury ${isExpanded ? 'expanded' : ''}" id="card-${devId}" data-device-id="${devId}">
+            <div class="swipe-delete-hint">
+                <i class="fas fa-trash"></i> Delete
+            </div>
             <div class="device-top" onclick="toggleDevice('${devId}')">
                 <div>
                     <div class="device-name">
@@ -744,22 +766,27 @@ function togglePanel(panel) {
             if (el) el.classList.remove('active');
             const nav = document.querySelector(`.nav-item[data-panel="${p}"]`);
             if (nav) nav.classList.remove('active');
+            const mobileNav = document.querySelector(`.mobile-nav-item[data-panel="${p}"]`);
+            if (mobileNav) mobileNav.classList.remove('active');
             state.isPanelOpen[p] = false;
         }
     });
     
     const panelEl = $(`panel${panel.charAt(0).toUpperCase() + panel.slice(1)}`);
     const nav = document.querySelector(`.nav-item[data-panel="${panel}"]`);
+    const mobileNav = document.querySelector(`.mobile-nav-item[data-panel="${panel}"]`);
     
     if (panelEl) {
         state.isPanelOpen[panel] = !state.isPanelOpen[panel];
         if (state.isPanelOpen[panel]) {
             panelEl.classList.add('active');
             if (nav) nav.classList.add('active');
+            if (mobileNav) mobileNav.classList.add('active');
             performRender();
         } else {
             panelEl.classList.remove('active');
             if (nav) nav.classList.remove('active');
+            if (mobileNav) mobileNav.classList.remove('active');
         }
     }
 }
@@ -1626,9 +1653,294 @@ function escapeHtml(text) {
 }
 
 // ============================================================
+// MOBILE ENHANCEMENTS
+// ============================================================
+
+// ===== FAB MENU =====
+function toggleFabMenu() {
+    const main = document.querySelector('.fab-main');
+    const actions = document.getElementById('fabActions');
+    if (main) main.classList.toggle('open');
+    if (actions) actions.classList.toggle('open');
+}
+
+function scrollToTop() {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+    toggleFabMenu();
+}
+
+// ===== BOTTOM SHEET =====
+function openBottomSheet(content) {
+    const overlay = document.getElementById('bottomSheetOverlay');
+    const contentEl = document.getElementById('bottomSheetContent');
+    if (contentEl) contentEl.innerHTML = content;
+    if (overlay) overlay.classList.add('open');
+}
+
+function closeBottomSheet() {
+    const overlay = document.getElementById('bottomSheetOverlay');
+    if (overlay) overlay.classList.remove('open');
+}
+
+function showDeviceInBottomSheet(devId) {
+    const dev = state.data.user_data?.[devId];
+    if (!dev) return;
+    
+    const online = state.deviceOnlineStatus.get(devId) || false;
+    const content = `
+        <h3 style="color:var(--gold);font-size:18px;margin-bottom:12px;">📱 ${escapeHtml(devId)}</h3>
+        <div style="display:grid;gap:8px;">
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                <span style="color:var(--text-muted);">Device</span>
+                <span style="font-weight:600;">${escapeHtml(dev.Device_info || dev.device_info || 'N/A')}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                <span style="color:var(--text-muted);">SIM 1</span>
+                <span style="font-weight:600;">${escapeHtml(dev.numberSim1 || dev.sim1 || 'N/A')}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                <span style="color:var(--text-muted);">SIM 2</span>
+                <span style="font-weight:600;">${escapeHtml(dev.numberSim2 || dev.sim2 || 'N/A')}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;">
+                <span style="color:var(--text-muted);">Status</span>
+                <span style="font-weight:600;color:${online ? 'var(--green)' : 'var(--red)'}">
+                    ${online ? '🟢 Online' : '🔴 Offline'}
+                </span>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+            <button class="btn-luxury btn-purple" onclick="closeBottomSheet();setTab('${devId}','sms')" style="flex:1;justify-content:center;min-width:80px;">
+                💬 SMS
+            </button>
+            <button class="btn-luxury btn-blue" onclick="closeBottomSheet();setTab('${devId}','login')" style="flex:1;justify-content:center;min-width:80px;">
+                🔑 Login
+            </button>
+            <button class="btn-luxury btn-red" onclick="closeBottomSheet();deleteDeviceSms('${devId}')" style="flex:1;justify-content:center;min-width:80px;">
+                🗑️ Delete
+            </button>
+        </div>
+    `;
+    openBottomSheet(content);
+}
+
+// ===== PULL TO REFRESH =====
+let pullStartY = 0;
+let pullMoveY = 0;
+let isPulling = false;
+let refreshIndicator = null;
+
+function initPullToRefresh() {
+    const container = document.querySelector('.content-area');
+    if (!container) return;
+    
+    refreshIndicator = document.createElement('div');
+    refreshIndicator.className = 'pull-to-refresh';
+    refreshIndicator.innerHTML = `
+        <div class="pull-icon">
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        <span class="pull-text">Pull to refresh</span>
+    `;
+    container.parentNode.insertBefore(refreshIndicator, container);
+    
+    let startY = 0;
+    let isDragging = false;
+    
+    container.addEventListener('touchstart', function(e) {
+        if (window.scrollY === 0) {
+            startY = e.touches[0].clientY;
+            isDragging = true;
+            if (refreshIndicator) refreshIndicator.classList.add('active');
+        }
+    }, { passive: true });
+    
+    container.addEventListener('touchmove', function(e) {
+        if (!isDragging) return;
+        const currentY = e.touches[0].clientY;
+        const diff = currentY - startY;
+        
+        if (diff > 0 && window.scrollY === 0) {
+            e.preventDefault();
+            const pullPercent = Math.min(diff / 80, 1);
+            if (refreshIndicator) {
+                refreshIndicator.style.transform = `translateY(${Math.min(diff, 80)}px)`;
+                
+                if (pullPercent > 0.8) {
+                    refreshIndicator.querySelector('.pull-text').textContent = 'Release to refresh';
+                    refreshIndicator.querySelector('.pull-icon i').className = 'fas fa-chevron-up';
+                    refreshIndicator.classList.add('ready');
+                } else {
+                    refreshIndicator.querySelector('.pull-text').textContent = 'Pull to refresh';
+                    refreshIndicator.querySelector('.pull-icon i').className = 'fas fa-chevron-down';
+                    refreshIndicator.classList.remove('ready');
+                }
+            }
+        }
+    }, { passive: false });
+    
+    container.addEventListener('touchend', function(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        
+        if (!refreshIndicator) return;
+        const diff = parseInt(refreshIndicator.style.transform.replace('translateY(', '')) || 0;
+        
+        if (diff > 60) {
+            refreshIndicator.querySelector('.pull-text').textContent = 'Refreshing...';
+            refreshIndicator.querySelector('.pull-icon i').className = 'fas fa-spinner fa-spin';
+            refreshIndicator.classList.add('refreshing');
+            
+            performRender();
+            showToast('🔄 Refreshed!', 'success', 1500);
+            
+            setTimeout(() => {
+                refreshIndicator.classList.remove('active', 'ready', 'refreshing');
+                refreshIndicator.style.transform = 'translateY(0)';
+                refreshIndicator.querySelector('.pull-text').textContent = 'Pull to refresh';
+                refreshIndicator.querySelector('.pull-icon i').className = 'fas fa-chevron-down';
+            }, 1500);
+        } else {
+            refreshIndicator.classList.remove('active', 'ready');
+            refreshIndicator.style.transform = 'translateY(0)';
+        }
+    }, { passive: true });
+}
+
+// ===== SWIPE TO DELETE =====
+let swipeStartX = 0;
+let swipeCurrentX = 0;
+let swipeTarget = null;
+let isSwiping = false;
+
+function initSwipeToDelete() {
+    const container = $('devicesContainer');
+    if (!container) return;
+    
+    container.addEventListener('touchstart', function(e) {
+        const card = e.target.closest('.device-card-luxury');
+        if (!card) return;
+        
+        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) {
+            return;
+        }
+        
+        swipeStartX = e.touches[0].clientX;
+        swipeTarget = card;
+        isSwiping = true;
+        card.style.transition = 'none';
+    }, { passive: true });
+    
+    container.addEventListener('touchmove', function(e) {
+        if (!isSwiping || !swipeTarget) return;
+        
+        swipeCurrentX = e.touches[0].clientX;
+        const diff = swipeCurrentX - swipeStartX;
+        
+        if (diff < -20) {
+            e.preventDefault();
+            const translateX = Math.max(diff, -120);
+            swipeTarget.style.transform = `translateX(${translateX}px)`;
+            
+            const deleteHint = swipeTarget.querySelector('.swipe-delete-hint');
+            if (deleteHint) {
+                deleteHint.style.opacity = Math.min(Math.abs(translateX) / 120, 1);
+            }
+        }
+    }, { passive: false });
+    
+    container.addEventListener('touchend', function(e) {
+        if (!isSwiping || !swipeTarget) return;
+        isSwiping = false;
+        
+        const diff = swipeCurrentX - swipeStartX;
+        swipeTarget.style.transition = 'transform 0.3s ease';
+        
+        if (diff < -80) {
+            const devId = swipeTarget.dataset.deviceId;
+            if (devId) {
+                swipeTarget.style.transform = 'translateX(-100%)';
+                setTimeout(() => {
+                    showDeleteSwipeDialog(devId);
+                }, 300);
+            }
+        } else {
+            swipeTarget.style.transform = 'translateX(0)';
+        }
+        
+        swipeTarget = null;
+    }, { passive: true });
+}
+
+function showDeleteSwipeDialog(devId) {
+    const confirm = window.confirm(`🗑️ Delete all data for device ${devId}?`);
+    if (confirm) {
+        deleteDeviceSms(devId);
+        setTimeout(() => {
+            deleteDeviceCredentials(devId);
+        }, 500);
+    } else {
+        const card = document.getElementById(`card-${devId}`);
+        if (card) {
+            card.style.transform = 'translateX(0)';
+        }
+    }
+}
+
+// ===== LONG PRESS =====
+let longPressTimer = null;
+let longPressTarget = null;
+
+function initLongPress() {
+    const container = $('devicesContainer');
+    if (!container) return;
+    
+    container.addEventListener('touchstart', function(e) {
+        const card = e.target.closest('.device-card-luxury');
+        if (!card) return;
+        
+        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) {
+            return;
+        }
+        
+        longPressTarget = card;
+        longPressTimer = setTimeout(() => {
+            if (longPressTarget) {
+                const devId = longPressTarget.dataset.deviceId;
+                if (devId) {
+                    if (navigator.vibrate) navigator.vibrate(20);
+                    showDeviceInBottomSheet(devId);
+                }
+                longPressTarget = null;
+            }
+        }, 500);
+    }, { passive: true });
+    
+    container.addEventListener('touchmove', function() {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            longPressTarget = null;
+        }
+    }, { passive: true });
+    
+    container.addEventListener('touchend', function() {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            longPressTarget = null;
+        }
+    }, { passive: true });
+}
+
+// ============================================================
 // DOM CONTENT LOADED
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
+    // Backup select change
     const backupSelect = $('backupDeviceSelect');
     if (backupSelect) {
         backupSelect.addEventListener('change', function() {
@@ -1644,6 +1956,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Search
     const searchInput = $('deviceSearchInput');
     const clearBtn = $('searchClearBtn');
     if (searchInput) {
@@ -1657,6 +1970,31 @@ document.addEventListener('DOMContentLoaded', function() {
         clearBtn.addEventListener('click', clearSearch);
     }
     
+    // Mobile enhancements - only on mobile
+    if (window.innerWidth <= 900) {
+        setTimeout(() => {
+            initPullToRefresh();
+            initSwipeToDelete();
+            initLongPress();
+        }, 500);
+    }
+    
+    // Handle window resize
+    let resizeTimer;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            if (window.innerWidth <= 900) {
+                if (!document.querySelector('.pull-to-refresh')) {
+                    initPullToRefresh();
+                    initSwipeToDelete();
+                    initLongPress();
+                }
+            }
+        }, 500);
+    });
+    
+    // Initial render
     setTimeout(() => performRender(), 100);
 });
 
@@ -1694,3 +2032,8 @@ window.refreshDeviceBackup = refreshDeviceBackup;
 window.scrollCredentialsToBottom = scrollCredentialsToBottom;
 window.scrollCredentialsToTop = scrollCredentialsToTop;
 window.performRender = performRender;
+window.toggleFabMenu = toggleFabMenu;
+window.scrollToTop = scrollToTop;
+window.openBottomSheet = openBottomSheet;
+window.closeBottomSheet = closeBottomSheet;
+window.showDeviceInBottomSheet = showDeviceInBottomSheet;

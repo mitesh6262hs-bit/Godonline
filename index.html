@@ -1,11 +1,14 @@
 <!-- ============================================================ -->
-<!-- index.html - COMPLETE FIXED - NO BLINK, NO DUPLICATES      -->
+<!-- index.html - COMPLETE WITH ALL MOBILE ENHANCEMENTS          -->
 <!-- ============================================================ -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0c0e14" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>RTO Luxury Admin Panel</title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
@@ -71,7 +74,7 @@
             </aside>
 
             <!-- ===== CONTENT AREA ===== -->
-            <main class="content-area">
+            <main class="content-area" id="contentArea">
 
                 <!-- ===== DEVICES PANEL ===== -->
                 <div class="panel active" id="panelDevices">
@@ -238,9 +241,57 @@
             </main>
         </div>
 
-        <!-- ===== MODALS ===== -->
+        <!-- ===== MOBILE BOTTOM NAV ===== -->
+        <nav class="mobile-bottom-nav" id="mobileBottomNav">
+            <button class="mobile-nav-item active" data-panel="devices" onclick="togglePanel('devices')">
+                <i class="fas fa-mobile-alt"></i>
+                <span>Devices</span>
+            </button>
+            <button class="mobile-nav-item" data-panel="sms" onclick="togglePanel('sms')">
+                <i class="fas fa-envelope"></i>
+                <span>Messages</span>
+                <span class="mobile-nav-badge" id="mobileSmsBadge">0</span>
+            </button>
+            <button class="mobile-nav-item" data-panel="backup" onclick="togglePanel('backup')">
+                <i class="fas fa-database"></i>
+                <span>Backup</span>
+            </button>
+            <button class="mobile-nav-item" data-panel="analytics" onclick="togglePanel('analytics')">
+                <i class="fas fa-chart-pie"></i>
+                <span>Analytics</span>
+            </button>
+        </nav>
 
-        <!-- SMS Modal -->
+        <!-- ===== FLOATING ACTION BUTTON ===== -->
+        <div class="fab-container" id="fabContainer">
+            <button class="fab-main" onclick="toggleFabMenu()">
+                <i class="fas fa-plus"></i>
+            </button>
+            <div class="fab-actions" id="fabActions">
+                <button class="fab-action" onclick="triggerBackup();toggleFabMenu();" title="Backup">
+                    <i class="fas fa-database"></i>
+                </button>
+                <button class="fab-action" onclick="refreshBackupStatus();toggleFabMenu();" title="Refresh">
+                    <i class="fas fa-sync"></i>
+                </button>
+                <button class="fab-action" onclick="performRender();toggleFabMenu();" title="Reload">
+                    <i class="fas fa-redo"></i>
+                </button>
+                <button class="fab-action" onclick="scrollToTop();toggleFabMenu();" title="Top">
+                    <i class="fas fa-arrow-up"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ===== BOTTOM SHEET ===== -->
+        <div class="bottom-sheet-overlay" id="bottomSheetOverlay" onclick="closeBottomSheet()">
+            <div class="bottom-sheet" onclick="event.stopPropagation()">
+                <div class="bottom-sheet-handle"></div>
+                <div class="bottom-sheet-content" id="bottomSheetContent"></div>
+            </div>
+        </div>
+
+        <!-- ===== MODALS ===== -->
         <div class="modal-luxury" id="smsModal" onclick="closeSmsModal(event)">
             <div class="modal-luxury-content" onclick="event.stopPropagation()">
                 <div class="modal-luxury-header">
@@ -256,7 +307,6 @@
             </div>
         </div>
 
-        <!-- Backup SMS Modal -->
         <div class="modal-luxury" id="backupSmsModal" onclick="closeBackupSmsModal(event)">
             <div class="modal-luxury-content" style="max-width:800px;" onclick="event.stopPropagation()">
                 <div class="modal-luxury-header">
