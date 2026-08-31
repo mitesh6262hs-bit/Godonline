@@ -40,7 +40,6 @@ body {
     overflow-x: hidden;
 }
 
-/* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar {
     width: 4px;
 }
@@ -52,16 +51,13 @@ body {
     border-radius: 10px;
 }
 
-/* ===== APP WRAPPER ===== */
 .app-wrapper {
     max-width: 1440px;
     margin: 0 auto;
     padding: 12px;
 }
 
-/* ============================================================
-   TOP BAR - LUXURY
-   ============================================================ */
+/* ===== TOP BAR ===== */
 .top-bar {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -72,7 +68,6 @@ body {
     align-items: center;
     box-shadow: var(--shadow-gold);
     margin-bottom: 16px;
-    backdrop-filter: blur(10px);
 }
 
 .brand {
@@ -84,22 +79,18 @@ body {
 .brand-icon {
     font-size: 24px;
     color: var(--gold);
-    font-weight: 300;
 }
-
 .brand-name {
     font-family: 'Playfair Display', serif;
     font-size: 22px;
     font-weight: 700;
     letter-spacing: 1px;
 }
-
 .brand-name em {
     color: var(--gold);
     font-style: italic;
     font-weight: 400;
 }
-
 .brand-badge {
     font-size: 9px;
     font-weight: 700;
@@ -108,7 +99,6 @@ body {
     color: #0c0e14;
     padding: 2px 10px;
     border-radius: 20px;
-    letter-spacing: 0.5px;
 }
 
 .top-right {
@@ -133,14 +123,11 @@ body {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    display: inline-block;
 }
-
 .connection-status.online .dot {
     background: var(--green);
     box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
 }
-
 .connection-status.offline .dot {
     background: var(--red);
     box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
@@ -155,27 +142,20 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
     cursor: pointer;
     transition: var(--transition);
 }
-
 .profile-avatar:hover {
     transform: scale(1.05);
     box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
 }
 
-/* ============================================================
-   MAIN LAYOUT
-   ============================================================ */
+/* ===== SIDEBAR ===== */
 .main-layout {
     display: flex;
     gap: 16px;
 }
 
-/* ============================================================
-   SIDEBAR - LUXURY
-   ============================================================ */
 .sidebar {
     width: 200px;
     flex-shrink: 0;
@@ -211,25 +191,21 @@ body {
     transition: var(--transition);
     width: 100%;
     text-align: left;
-    position: relative;
 }
 
 .nav-item:hover {
     background: var(--bg-card-hover);
     color: var(--text-primary);
 }
-
 .nav-item.active {
     background: rgba(212, 175, 55, 0.08);
     color: var(--gold);
     border: 1px solid rgba(212, 175, 55, 0.15);
 }
-
 .nav-item i {
     width: 20px;
     font-size: 15px;
 }
-
 .nav-badge {
     margin-left: auto;
     background: var(--bg-input);
@@ -240,7 +216,6 @@ body {
     color: var(--text-secondary);
     border: 1px solid var(--border-color);
 }
-
 .nav-item.active .nav-badge {
     background: rgba(212, 175, 55, 0.12);
     color: var(--gold);
@@ -251,7 +226,6 @@ body {
     border-top: 1px solid var(--border-color);
     padding-top: 14px;
 }
-
 .user-info {
     display: flex;
     align-items: center;
@@ -259,23 +233,17 @@ body {
     font-size: 13px;
     color: var(--text-secondary);
 }
-
 .user-info i {
     font-size: 18px;
     color: var(--gold);
 }
 
-/* ============================================================
-   CONTENT AREA
-   ============================================================ */
+/* ===== CONTENT ===== */
 .content-area {
     flex: 1;
     min-width: 0;
 }
 
-/* ============================================================
-   PANELS
-   ============================================================ */
 .panel {
     display: none;
     background: var(--bg-card);
@@ -285,11 +253,9 @@ body {
     box-shadow: var(--shadow-gold);
     animation: fadeSlide 0.3s ease;
 }
-
 .panel.active {
     display: block;
 }
-
 @keyframes fadeSlide {
     from {
         opacity: 0;
@@ -309,28 +275,46 @@ body {
     flex-wrap: wrap;
     gap: 12px;
 }
-
 .panel-header h2 {
     font-family: 'Playfair Display', serif;
     font-size: 24px;
     font-weight: 700;
-    letter-spacing: 0.5px;
 }
-
 .panel-header h2 i {
     margin-right: 10px;
 }
-
 .panel-sub {
     font-size: 13px;
     color: var(--text-secondary);
     margin-top: 4px;
 }
-
 .panel-stats {
     display: flex;
-    gap: 16px;
+    gap: 10px;
     flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Filter Buttons */
+.filter-btn {
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border-color);
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+}
+.filter-btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+.filter-btn.active {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(212, 175, 55, 0.08);
 }
 
 .stat-item {
@@ -344,21 +328,17 @@ body {
     border-radius: 20px;
     border: 1px solid var(--border-color);
 }
-
 .stat-item i {
     font-size: 10px;
 }
 
-/* ============================================================
-   LUXURY LOADING
-   ============================================================ */
+/* ===== LOADING ===== */
 .loading-luxury {
     text-align: center;
     padding: 40px 0;
     color: var(--text-secondary);
     font-size: 14px;
 }
-
 .loader-ring {
     display: inline-block;
     width: 28px;
@@ -369,16 +349,13 @@ body {
     animation: spin 0.8s linear infinite;
     margin-bottom: 12px;
 }
-
 @keyframes spin {
     to {
         transform: rotate(360deg);
     }
 }
 
-/* ============================================================
-   DEVICE CARDS - LUXURY
-   ============================================================ */
+/* ===== DEVICE CARDS ===== */
 .device-card-luxury {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -388,16 +365,13 @@ body {
     cursor: pointer;
     transition: var(--transition);
 }
-
 .device-card-luxury:hover {
     border-color: rgba(212, 175, 55, 0.3);
 }
-
 .device-card-luxury.expanded {
     border-color: var(--gold);
     box-shadow: 0 0 30px rgba(212, 175, 55, 0.05);
 }
-
 .device-card-luxury .device-top {
     display: flex;
     justify-content: space-between;
@@ -405,32 +379,27 @@ body {
     flex-wrap: wrap;
     gap: 8px;
 }
-
 .device-card-luxury .device-name {
     font-size: 15px;
     font-weight: 600;
     color: var(--gold);
 }
-
 .device-card-luxury .device-status {
     font-size: 11px;
     font-weight: 600;
     padding: 3px 14px;
     border-radius: 20px;
 }
-
 .device-status.online {
     background: rgba(16, 185, 129, 0.12);
     color: var(--green);
     border: 1px solid rgba(16, 185, 129, 0.2);
 }
-
 .device-status.offline {
     background: rgba(239, 68, 68, 0.12);
     color: var(--red);
     border: 1px solid rgba(239, 68, 68, 0.2);
 }
-
 .device-card-luxury .device-info-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -438,7 +407,6 @@ body {
     margin-top: 10px;
     font-size: 12px;
 }
-
 .device-card-luxury .device-info-grid .item span {
     display: block;
     font-size: 9px;
@@ -446,28 +414,22 @@ body {
     color: var(--text-muted);
     letter-spacing: 0.5px;
 }
-
 .device-card-luxury .device-body {
     display: none;
     margin-top: 14px;
     padding-top: 14px;
     border-top: 1px solid var(--border-color);
 }
-
 .device-card-luxury.expanded .device-body {
     display: block;
 }
 
-/* ============================================================
-   ACTION BUTTONS - LUXURY
-   ============================================================ */
 .device-actions-luxury {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
     gap: 5px;
     margin-bottom: 12px;
 }
-
 .device-actions-luxury .sub-btn {
     padding: 6px 4px;
     border-radius: var(--radius-sm);
@@ -480,12 +442,10 @@ body {
     transition: var(--transition);
     text-align: center;
 }
-
 .device-actions-luxury .sub-btn:hover {
     background: var(--bg-card-hover);
     color: var(--text-primary);
 }
-
 .device-actions-luxury .sub-btn.active-sms {
     border-color: var(--blue);
     color: var(--blue);
@@ -517,9 +477,7 @@ body {
     background: rgba(6, 182, 212, 0.08);
 }
 
-/* ============================================================
-   SMS CARDS - LUXURY
-   ============================================================ */
+/* ===== SMS CARDS ===== */
 .sms-list-luxury {
     display: flex;
     flex-direction: column;
@@ -527,7 +485,6 @@ body {
     max-height: 350px;
     overflow-y: auto;
 }
-
 .sms-card-luxury {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -535,34 +492,33 @@ body {
     padding: 10px 14px;
     transition: var(--transition);
 }
-
 .sms-card-luxury:hover {
     border-color: rgba(212, 175, 55, 0.2);
 }
-
 .sms-card-luxury .sms-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-
 .sms-card-luxury .sms-sender {
     font-weight: 600;
     color: var(--gold-light);
     font-size: 12px;
 }
-
 .sms-card-luxury .sms-sender .device-tag {
     color: var(--text-muted);
     font-weight: 400;
     font-size: 10px;
+    cursor: pointer;
+    transition: var(--transition);
 }
-
+.sms-card-luxury .sms-sender .device-tag:hover {
+    color: var(--gold);
+}
 .sms-card-luxury .sms-meta {
     font-size: 10px;
     color: var(--text-muted);
 }
-
 .sms-card-luxury .sms-body {
     font-size: 12px;
     line-height: 1.5;
@@ -571,16 +527,13 @@ body {
     word-wrap: break-word;
 }
 
-/* ============================================================
-   BACKUP PANEL - LUXURY
-   ============================================================ */
+/* ===== BACKUP ===== */
 .backup-grid {
     display: grid;
     grid-template-columns: 1fr 2fr;
     gap: 16px;
     margin-bottom: 18px;
 }
-
 @media (max-width: 700px) {
     .backup-grid {
         grid-template-columns: 1fr;
@@ -597,9 +550,7 @@ body {
     font-size: 13px;
     outline: none;
     cursor: pointer;
-    transition: var(--transition);
 }
-
 .luxury-select:focus {
     border-color: var(--gold);
 }
@@ -613,18 +564,15 @@ body {
     grid-template-columns: 1fr 1fr;
     gap: 4px 20px;
 }
-
 .backup-status-card .status-item {
     display: flex;
     justify-content: space-between;
     padding: 3px 0;
     font-size: 12px;
 }
-
 .backup-status-card .status-label {
     color: var(--text-muted);
 }
-
 .backup-status-card .status-value {
     color: var(--text-primary);
     font-weight: 500;
@@ -639,9 +587,7 @@ body {
     color: #f59e0b;
 }
 
-/* ============================================================
-   BUTTONS - LUXURY
-   ============================================================ */
+/* ===== BUTTONS ===== */
 .btn-gold {
     background: var(--gold);
     color: #0c0e14;
@@ -656,7 +602,6 @@ body {
     align-items: center;
     gap: 6px;
 }
-
 .btn-gold:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 20px rgba(212, 175, 55, 0.3);
@@ -675,7 +620,6 @@ body {
     cursor: pointer;
     transition: var(--transition);
 }
-
 .btn-load-more:hover {
     border-color: var(--gold);
     background: rgba(212, 175, 55, 0.05);
@@ -687,7 +631,6 @@ body {
     margin-top: 16px;
     flex-wrap: wrap;
 }
-
 .btn-luxury {
     padding: 10px 20px;
     border: none;
@@ -700,11 +643,9 @@ body {
     align-items: center;
     gap: 6px;
 }
-
 .btn-luxury:hover {
     transform: translateY(-1px);
 }
-
 .btn-purple {
     background: var(--purple);
     color: #fff;
@@ -713,7 +654,6 @@ body {
     background: #7c3aed;
     box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
 }
-
 .btn-blue {
     background: var(--blue);
     color: #fff;
@@ -722,7 +662,6 @@ body {
     background: #2563eb;
     box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
 }
-
 .btn-red {
     background: var(--red);
     color: #fff;
@@ -732,25 +671,30 @@ body {
     box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
 }
 
-/* ============================================================
-   BACKUP SMS LIST
-   ============================================================ */
+.btn-sm {
+    padding: 2px 12px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: var(--transition);
+}
+
+/* ===== BACKUP SMS ===== */
 .backup-sms-section {
     margin-top: 16px;
 }
-
 .backup-sms-section h4 {
     font-size: 14px;
     color: var(--text-secondary);
     margin-bottom: 10px;
     font-weight: 500;
 }
-
 .backup-sms-list {
     max-height: 260px;
     overflow-y: auto;
 }
-
 .backup-sms-item {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -758,26 +702,22 @@ body {
     padding: 10px 14px;
     margin-bottom: 5px;
 }
-
 .backup-sms-item .sms-header {
     display: flex;
     justify-content: space-between;
     font-size: 10px;
     color: var(--text-muted);
 }
-
 .backup-sms-item .sms-header .sender {
     color: var(--gold-light);
     font-weight: 600;
 }
-
 .backup-sms-item .sms-body {
     font-size: 12px;
     margin-top: 3px;
     color: var(--text-primary);
     word-wrap: break-word;
 }
-
 .empty-luxury {
     text-align: center;
     padding: 20px 0;
@@ -785,15 +725,12 @@ body {
     font-size: 13px;
 }
 
-/* ============================================================
-   ANALYTICS
-   ============================================================ */
+/* ===== ANALYTICS ===== */
 .analytics-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 16px;
 }
-
 .analytics-card {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -804,11 +741,9 @@ body {
     gap: 14px;
     transition: var(--transition);
 }
-
 .analytics-card:hover {
     border-color: var(--gold);
 }
-
 .analytics-icon {
     width: 44px;
     height: 44px;
@@ -820,19 +755,16 @@ body {
     font-size: 20px;
     color: var(--gold);
 }
-
 .analytics-info {
     display: flex;
     flex-direction: column;
 }
-
 .analytics-label {
     font-size: 11px;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-
 .analytics-value {
     font-size: 22px;
     font-weight: 700;
@@ -840,9 +772,7 @@ body {
     color: var(--text-primary);
 }
 
-/* ============================================================
-   MODAL - LUXURY
-   ============================================================ */
+/* ===== MODAL ===== */
 .modal-luxury {
     display: none;
     position: fixed;
@@ -857,11 +787,9 @@ body {
     align-items: center;
     padding: 16px;
 }
-
 .modal-luxury.open {
     display: flex;
 }
-
 .modal-luxury-content {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -874,7 +802,6 @@ body {
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
     animation: modalLuxury 0.25s ease;
 }
-
 @keyframes modalLuxury {
     from {
         opacity: 0;
@@ -885,7 +812,6 @@ body {
         transform: scale(1) translateY(0);
     }
 }
-
 .modal-luxury-header {
     padding: 14px 20px;
     background: var(--bg-input);
@@ -895,13 +821,11 @@ body {
     align-items: center;
     border-radius: var(--radius) var(--radius) 0 0;
 }
-
 .modal-luxury-header h3 {
     font-family: 'Playfair Display', serif;
     font-size: 18px;
     font-weight: 700;
 }
-
 .modal-luxury-close {
     background: rgba(239, 68, 68, 0.1);
     color: var(--red);
@@ -913,12 +837,10 @@ body {
     cursor: pointer;
     transition: var(--transition);
 }
-
 .modal-luxury-close:hover {
     background: var(--red);
     color: #fff;
 }
-
 .modal-luxury-body {
     padding: 16px 20px;
     overflow-y: auto;
@@ -926,9 +848,7 @@ body {
     max-height: 70vh;
 }
 
-/* ============================================================
-   TOAST
-   ============================================================ */
+/* ===== TOAST ===== */
 #toastContainer {
     position: fixed;
     bottom: 24px;
@@ -942,7 +862,6 @@ body {
     max-width: 90%;
     pointer-events: none;
 }
-
 .toast-luxury {
     background: var(--bg-card);
     color: var(--text-primary);
@@ -955,7 +874,6 @@ body {
     animation: toastLuxury 0.3s ease;
     text-align: center;
 }
-
 .toast-luxury.success {
     border-left: 3px solid var(--green);
 }
@@ -965,7 +883,6 @@ body {
 .toast-luxury.warning {
     border-left: 3px solid #f59e0b;
 }
-
 @keyframes toastLuxury {
     from {
         opacity: 0;
@@ -977,9 +894,7 @@ body {
     }
 }
 
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
+/* ===== RESPONSIVE ===== */
 @media (max-width: 900px) {
     .main-layout {
         flex-direction: column;
@@ -1039,5 +954,8 @@ body {
     }
     .device-actions-luxury {
         grid-template-columns: repeat(3, 1fr);
+    }
+    .backup-actions-luxury {
+        flex-direction: column;
     }
 }
