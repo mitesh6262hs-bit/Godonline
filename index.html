@@ -1,6 +1,3 @@
-<!-- ============================================================ -->
-<!-- index.html - COMPLETE WITH ALL FEATURES                     -->
-/* ============================================================ */
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,15 +8,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>RTO Luxury Admin Panel</title>
 
-    <!-- Fonts & Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
-    
-    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-    
-    <!-- CSS Files -->
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="device-card.css" />
     <link rel="stylesheet" href="credentials.css" />
@@ -105,7 +97,6 @@
                         </div>
                     </div>
                     
-                    <!-- Search Bar -->
                     <div class="search-container">
                         <i class="fas fa-search search-icon"></i>
                         <input type="text" id="deviceSearchInput" placeholder="Search devices by ID, name, or serial..." class="search-input" autocomplete="off" />
@@ -114,7 +105,6 @@
                         </button>
                     </div>
                     
-                    <!-- Delete Buttons -->
                     <div style="margin-bottom:12px;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
                         <button class="btn-delete-all" onclick="deleteAllSms()">
                             <i class="fas fa-trash-alt"></i> Delete All SMS
@@ -124,7 +114,6 @@
                         </button>
                     </div>
                     
-                    <!-- Devices Container -->
                     <div id="devicesContainer">
                         <div class="loading-luxury"><span class="loader-ring"></span> Loading devices...</div>
                     </div>
@@ -173,9 +162,7 @@
                         </div>
                     </div>
 
-                    <!-- Credentials Catalog Content -->
                     <div class="credentials-catalog active">
-                        <!-- Catalog Header -->
                         <div class="catalog-header">
                             <div class="catalog-title">
                                 <h3>🔐 All Saved Credentials</h3>
@@ -193,7 +180,6 @@
                             </div>
                         </div>
 
-                        <!-- Toolbar -->
                         <div class="catalog-toolbar">
                             <div class="toolbar-search">
                                 <i class="fas fa-search"></i>
@@ -216,12 +202,8 @@
                             </button>
                         </div>
 
-                        <!-- Device Filter Tabs -->
-                        <div class="device-filter-tabs" id="credDeviceTabs">
-                            <!-- Dynamically generated -->
-                        </div>
+                        <div class="device-filter-tabs" id="credDeviceTabs"></div>
 
-                        <!-- Credentials Grid -->
                         <div class="creds-grid" id="credsGrid">
                             <div class="no-creds" style="grid-column:1/-1;">
                                 <div class="no-creds-icon"><i class="fas fa-key"></i></div>
@@ -230,10 +212,7 @@
                             </div>
                         </div>
 
-                        <!-- Pagination -->
-                        <div class="catalog-pagination" id="credPagination">
-                            <!-- Dynamically generated -->
-                        </div>
+                        <div class="catalog-pagination" id="credPagination"></div>
                     </div>
                 </div>
 
@@ -409,7 +388,6 @@
         <!-- MODALS                                                    -->
         <!-- ========================================================== -->
 
-        <!-- SMS Modal -->
         <div class="modal-luxury" id="smsModal" onclick="closeSmsModal(event)">
             <div class="modal-luxury-content" onclick="event.stopPropagation()">
                 <div class="modal-luxury-header">
@@ -425,7 +403,6 @@
             </div>
         </div>
 
-        <!-- Backup SMS Modal -->
         <div class="modal-luxury" id="backupSmsModal" onclick="closeBackupSmsModal(event)">
             <div class="modal-luxury-content" style="max-width:800px;" onclick="event.stopPropagation()">
                 <div class="modal-luxury-header">
@@ -438,15 +415,10 @@
             </div>
         </div>
 
-        <!-- Toast Container -->
         <div id="toastContainer"></div>
 
     </div>
 
-    <!-- ========================================================== -->
-    <!-- JAVASCRIPT                                                -->
-    <!-- ========================================================== -->
     <script src="app.js"></script>
-
 </body>
 </html>

