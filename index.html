@@ -1,5 +1,5 @@
 <!-- ============================================================ -->
-<!-- index.html - Complete Fixed: Search, Delete SMS, No Blink   -->
+<!-- index.html - Complete with Search, Delete SMS, No Blink     -->
 <!-- ============================================================ -->
 <!DOCTYPE html>
 <html lang="en">
@@ -8,19 +8,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>RTO Luxury Admin Panel</title>
 
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
-
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
-
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
-    </script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js">
-    </script>
-
-    <!-- External CSS -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -96,20 +87,23 @@
                             <span class="stat-item"><i class="fas fa-users"></i> <span id="panelDeviceCount">0</span></span>
                         </div>
                     </div>
+                    
                     <!-- Search Bar -->
                     <div class="search-container">
                         <i class="fas fa-search search-icon"></i>
                         <input type="text" id="deviceSearchInput" placeholder="Search devices by ID, name, or serial..." class="search-input" />
-                        <button class="search-clear-btn" onclick="clearSearch()" id="searchClearBtn" style="display:none;">
+                        <button class="search-clear-btn" id="searchClearBtn" style="display:none;">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
+                    
                     <!-- Delete All SMS Button -->
                     <div style="margin-bottom:12px;display:flex;justify-content:flex-end;">
                         <button class="btn-delete-all" onclick="deleteAllSms()">
                             <i class="fas fa-trash-alt"></i> Delete All SMS
                         </button>
                     </div>
+                    
                     <div id="devicesContainer">
                         <div class="loading-luxury"><span class="loader-ring"></span> Loading devices...</div>
                     </div>
