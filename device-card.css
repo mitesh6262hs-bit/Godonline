@@ -1,0 +1,751 @@
+/* ============================================================ */
+/* device-card.css - PREMIUM DEVICE CARD LAYOUT                */
+/* ============================================================ */
+
+/* ===== PREMIUM DEVICE CARD VARIABLES ===== */
+:root {
+    --card-gradient-1: linear-gradient(145deg, #1a1f2e, #141824);
+    --card-gradient-2: linear-gradient(135deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.02));
+    --glass-bg: rgba(26, 31, 46, 0.85);
+    --glass-border: rgba(212, 175, 55, 0.15);
+    --glow-gold: 0 0 40px rgba(212, 175, 55, 0.05);
+    --shadow-premium: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-hover: 0 12px 48px rgba(212, 175, 55, 0.08);
+}
+
+/* ===== MAIN CARD CONTAINER ===== */
+.device-card-premium {
+    position: relative;
+    background: var(--card-gradient-1);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    box-shadow: var(--shadow-premium);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transform: translateZ(0);
+    will-change: transform;
+}
+
+/* Glow Effect - Background */
+.device-card-premium::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 30% 20%, rgba(212, 175, 55, 0.03), transparent 70%);
+    pointer-events: none;
+    transition: all 0.6s ease;
+}
+
+.device-card-premium:hover::before {
+    opacity: 0.5;
+    transform: scale(1.1);
+}
+
+/* Status Indicator Line - Top */
+.device-card-premium::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--border-color);
+    transition: all 0.4s ease;
+}
+
+.device-card-premium.online::after {
+    background: linear-gradient(90deg, var(--green), #34d399);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.device-card-premium.offline::after {
+    background: linear-gradient(90deg, var(--red), #f87171);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+.device-card-premium:hover {
+    border-color: rgba(212, 175, 55, 0.3);
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: var(--shadow-hover), var(--glow-gold);
+}
+
+/* ===== CARD HEADER ===== */
+.device-card-premium .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+}
+
+.device-card-premium .device-info-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.device-card-premium .device-name-premium {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.device-card-premium .device-name-premium .name-text {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--gold-light);
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 30px rgba(212, 175, 55, 0.1);
+}
+
+.device-card-premium .device-name-premium .device-id {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: rgba(42, 52, 82, 0.4);
+    padding: 2px 12px;
+    border-radius: 20px;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(42, 52, 82, 0.2);
+}
+
+.device-card-premium .device-name-premium .serial-badge-premium {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.05));
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    font-family: 'Inter', sans-serif;
+}
+
+.device-card-premium .device-name-premium .serial-badge-premium i {
+    font-size: 10px;
+}
+
+.device-card-premium .device-sub-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.device-card-premium .device-sub-info span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.device-card-premium .device-sub-info i {
+    font-size: 11px;
+    opacity: 0.6;
+}
+
+/* ===== STATUS BADGE ===== */
+.device-card-premium .status-badge-premium {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 30px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    background: rgba(42, 52, 82, 0.3);
+    border: 1px solid rgba(42, 52, 82, 0.2);
+}
+
+.device-card-premium .status-badge-premium .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+.device-card-premium .status-badge-premium.online {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.2);
+    color: var(--green);
+}
+
+.device-card-premium .status-badge-premium.online .status-dot {
+    background: var(--green);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.device-card-premium .status-badge-premium.offline {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.2);
+    color: var(--red);
+}
+
+.device-card-premium .status-badge-premium.offline .status-dot {
+    background: var(--red);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+.device-card-premium .status-badge-premium.checking {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+}
+
+.device-card-premium .status-badge-premium.checking .status-dot {
+    background: #f59e0b;
+    animation: pulse-dot 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+.device-card-premium .last-seen-premium {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-align: right;
+}
+
+/* ===== DEVICE INFO GRID - PREMIUM ===== */
+.device-card-premium .info-grid-premium {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 14px 0 16px 0;
+    padding: 12px 16px;
+    background: rgba(15, 20, 32, 0.5);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(42, 52, 82, 0.2);
+    position: relative;
+    z-index: 1;
+}
+
+.device-card-premium .info-item-premium {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.device-card-premium .info-item-premium .info-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.device-card-premium .info-item-premium .info-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+}
+
+.device-card-premium .info-item-premium .info-value.highlight {
+    color: var(--gold);
+}
+
+.device-card-premium .info-item-premium .info-value.sim-empty {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-size: 11px;
+}
+
+/* ===== ACTION BUTTONS ROW ===== */
+.device-card-premium .actions-row-premium {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    position: relative;
+    z-index: 1;
+}
+
+.device-card-premium .action-btn-premium {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Inter', sans-serif;
+}
+
+.device-card-premium .action-btn-premium:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.device-card-premium .action-btn-premium:active {
+    transform: scale(0.95);
+}
+
+.device-card-premium .action-btn-premium.active {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(212, 175, 55, 0.08);
+}
+
+.device-card-premium .action-btn-premium.active-sms {
+    border-color: var(--blue);
+    color: var(--blue);
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.device-card-premium .action-btn-premium.active-login {
+    border-color: #f59e0b;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+}
+
+.device-card-premium .action-btn-premium.active-call {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.device-card-premium .action-btn-premium.active-sendsms {
+    border-color: var(--purple);
+    color: var(--purple);
+    background: rgba(139, 92, 246, 0.08);
+}
+
+.device-card-premium .action-btn-premium.active-fwd {
+    border-color: var(--red);
+    color: var(--red);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.device-card-premium .action-btn-premium.active-backup {
+    border-color: #06b6d4;
+    color: #06b6d4;
+    background: rgba(6, 182, 212, 0.08);
+}
+
+.device-card-premium .action-btn-premium.active-delete {
+    border-color: var(--red);
+    color: var(--red);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.device-card-premium .action-btn-premium .btn-badge {
+    background: rgba(42, 52, 82, 0.3);
+    padding: 0px 8px;
+    border-radius: 12px;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.device-card-premium .action-btn-premium.active-sms .btn-badge {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--blue);
+}
+
+.device-card-premium .action-btn-premium.active-login .btn-badge {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+/* ===== EXPANDABLE CONTENT ===== */
+.device-card-premium .expandable-content {
+    display: none;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 4px;
+    position: relative;
+    z-index: 1;
+    animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.device-card-premium.expanded .expandable-content {
+    display: block;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.device-card-premium .expand-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.device-card-premium .expand-hint:hover {
+    color: var(--text-secondary);
+}
+
+.device-card-premium .expand-hint i {
+    font-size: 10px;
+    transition: transform 0.3s ease;
+}
+
+.device-card-premium.expanded .expand-hint i {
+    transform: rotate(180deg);
+}
+
+/* ===== SECTION CONTENT - PREMIUM ===== */
+.device-card-premium .section-premium {
+    display: none;
+    background: rgba(15, 20, 32, 0.5);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-top: 10px;
+    border: 1px solid rgba(42, 52, 82, 0.2);
+}
+
+.device-card-premium .section-premium.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.device-card-premium .section-premium .section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ===== SMS LIST - PREMIUM ===== */
+.device-card-premium .sms-list-premium {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.device-card-premium .sms-item-premium {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    border-left: 2px solid var(--gold);
+    transition: all 0.3s ease;
+}
+
+.device-card-premium .sms-item-premium:hover {
+    background: rgba(0, 0, 0, 0.3);
+    transform: translateX(4px);
+}
+
+.device-card-premium .sms-item-premium .sms-header-premium {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 3px;
+}
+
+.device-card-premium .sms-item-premium .sms-sender-premium {
+    color: var(--gold-light);
+    font-weight: 600;
+}
+
+.device-card-premium .sms-item-premium .sms-body-premium {
+    font-size: 12px;
+    color: var(--text-primary);
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+/* ===== CREDENTIALS - PREMIUM ===== */
+.device-card-premium .creds-container-premium {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.device-card-premium .cred-item-premium {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    border: 1px solid rgba(42, 52, 82, 0.2);
+    transition: all 0.3s ease;
+}
+
+.device-card-premium .cred-item-premium:hover {
+    border-color: rgba(212, 175, 55, 0.2);
+}
+
+.device-card-premium .cred-item-premium .cred-header-premium {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.device-card-premium .cred-item-premium .cred-fields-premium {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+}
+
+.device-card-premium .cred-item-premium .cred-field-premium {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(42, 52, 82, 0.1);
+}
+
+.device-card-premium .cred-item-premium .cred-field-premium .field-label-premium {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.device-card-premium .cred-item-premium .cred-field-premium .field-value-premium {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.device-card-premium .cred-item-premium .cred-field-premium .copy-btn-premium {
+    background: transparent;
+    border: none;
+    color: var(--gold);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0 4px;
+    transition: all 0.3s ease;
+}
+
+.device-card-premium .cred-item-premium .cred-field-premium .copy-btn-premium:hover {
+    transform: scale(1.2);
+    color: var(--gold-light);
+}
+
+/* ===== CHECK STATUS BTN ===== */
+.device-card-premium .check-status-btn-premium {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(212, 175, 55, 0.08);
+    border: 1px solid rgba(212, 175, 55, 0.15);
+    color: var(--gold);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 4px;
+}
+
+.device-card-premium .check-status-btn-premium:hover {
+    background: var(--gold);
+    color: #0c0e14;
+    transform: rotate(180deg) scale(1.1);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+}
+
+.device-card-premium .check-status-btn-premium:active {
+    transform: rotate(360deg) scale(0.9);
+}
+
+.device-card-premium .check-status-btn-premium.loading {
+    animation: spin 0.8s linear infinite;
+}
+
+/* ===== RESPONSIVE - PREMIUM ===== */
+@media (max-width: 900px) {
+    .device-card-premium .info-grid-premium {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        padding: 10px 14px;
+    }
+    
+    .device-card-premium .device-name-premium .name-text {
+        font-size: 16px;
+    }
+    
+    .device-card-premium {
+        padding: 16px 18px;
+    }
+}
+
+@media (max-width: 600px) {
+    .device-card-premium .device-name-premium {
+        flex-wrap: wrap;
+    }
+    
+    .device-card-premium .device-name-premium .name-text {
+        font-size: 15px;
+        width: 100%;
+    }
+    
+    .device-card-premium .device-sub-info {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .device-card-premium .info-grid-premium {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        padding: 8px 12px;
+    }
+    
+    .device-card-premium .info-item-premium .info-value {
+        font-size: 12px;
+    }
+    
+    .device-card-premium .actions-row-premium {
+        gap: 4px;
+    }
+    
+    .device-card-premium .action-btn-premium {
+        font-size: 10px;
+        padding: 4px 10px;
+    }
+    
+    .device-card-premium .status-badge-premium {
+        font-size: 10px;
+        padding: 3px 10px;
+    }
+    
+    .device-card-premium .cred-item-premium .cred-fields-premium {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 400px) {
+    .device-card-premium {
+        padding: 12px 14px;
+    }
+    
+    .device-card-premium .info-grid-premium {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .device-card-premium .device-name-premium .name-text {
+        font-size: 13px;
+    }
+    
+    .device-card-premium .actions-row-premium {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .device-card-premium .action-btn-premium {
+        font-size: 9px;
+        padding: 4px 6px;
+        justify-content: center;
+    }
+    
+    .device-card-premium .action-btn-premium .btn-badge {
+        font-size: 8px;
+        padding: 0 6px;
+    }
+}
+
+/* ===== DARK MODE GLOW EFFECTS ===== */
+@media (prefers-color-scheme: dark) {
+    .device-card-premium {
+        background: linear-gradient(145deg, #141824, #0f1218);
+    }
+}
+
+/* ===== SCROLLBAR STYLING ===== */
+.device-card-premium .sms-list-premium::-webkit-scrollbar,
+.device-card-premium .creds-container-premium::-webkit-scrollbar {
+    width: 3px;
+}
+
+.device-card-premium .sms-list-premium::-webkit-scrollbar-track,
+.device-card-premium .creds-container-premium::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+
+.device-card-premium .sms-list-premium::-webkit-scrollbar-thumb,
+.device-card-premium .creds-container-premium::-webkit-scrollbar-thumb {
+    background: var(--gold);
+    border-radius: 10px;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes cardGlow {
+    0%, 100% { box-shadow: var(--shadow-premium); }
+    50% { box-shadow: var(--shadow-premium), 0 0 30px rgba(212, 175, 55, 0.03); }
+}
+
+.device-card-premium.online {
+    animation: cardGlow 4s ease-in-out infinite;
+}
+
+/* ===== LOADING SHIMMER ===== */
+.device-card-premium.loading .card-header,
+.device-card-premium.loading .info-grid-premium {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.device-card-premium.loading::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 300%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.05), transparent);
+    animation: shimmer 2s infinite;
+    z-index: 0;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}

