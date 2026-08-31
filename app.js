@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Fixed: Device Click par Online/Offline Check        */
+/* app.js - Fixed: No Blink, No Auto-Refresh Jitter            */
 /* ============================================================ */
 
 // ============================================================
@@ -43,6 +43,9 @@ let deviceSerialMap = {};
 let isRendering = false;
 let isUpdatingUI = false;
 let deviceOnlineStatus = {};
+let renderTimeout = null;
+let lastRenderTime = 0;
+const MIN_RENDER_INTERVAL = 500;
 
 // ============================================================
 // DOM REFS
@@ -65,20 +68,22 @@ db.ref(".info/connected").on("value", (snap) => {
 });
 
 // ============================================================
-// MAIN DATA LISTENER
+// MAIN DATA LISTENER - NO BLINK
 // ============================================================
 let firstLoad = true;
-let lastData = {};
+let lastDataHash = '';
 
 db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
     
-    if (JSON.stringify(newData) === JSON.stringify(lastData)) {
-        return;
+    // Create hash of data to check if actually changed
+    const newHash = JSON.stringify(newData);
+    if (newHash === lastDataHash) {
+        return; // No change, skip completely
     }
     
     cachedData = newData;
-    lastData = JSON.parse(JSON.stringify(newData));
+    lastDataHash = newHash;
 
     // Update device online status
     updateDeviceOnlineStatus();
@@ -87,8 +92,23 @@ db.ref().on("value", (snapshot) => {
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
     if (typing) return;
 
+    // Throttle render calls
+    const now = Date.now();
+    if (now - lastRenderTime < MIN_RENDER_INTERVAL) {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            if (!isRendering && !isUpdatingUI) {
+                renderAll();
+                lastRenderTime = Date.now();
+            }
+            renderTimeout = null;
+        }, MIN_RENDER_INTERVAL);
+        return;
+    }
+
     if (!isRendering && !isUpdatingUI) {
         renderAll();
+        lastRenderTime = now;
     }
 
     if (firstLoad) {
@@ -100,26 +120,22 @@ db.ref().on("value", (snapshot) => {
 });
 
 // ============================================================
-// UPDATE DEVICE ONLINE STATUS - REAL TIME CHECK
+// UPDATE DEVICE ONLINE STATUS
 // ============================================================
 function updateDeviceOnlineStatus() {
     const devices = cachedData.user_data || {};
     Object.keys(devices).forEach(devId => {
         const dev = devices[devId];
-        // Check online status from multiple sources
         const isOnline = dev.isOnline || dev.online || false;
         const lastSeen = dev.last_online || dev.timestamp || 0;
         const currentTime = Date.now();
-        
-        // If last seen within 2 minutes, consider online
         const isRecent = (currentTime - lastSeen) < 120000;
-        
         deviceOnlineStatus[devId] = isOnline || isRecent;
     });
 }
 
 // ============================================================
-// CHECK DEVICE ONLINE STATUS - CLICK PAR CHECK
+// CHECK DEVICE STATUS
 // ============================================================
 function checkDeviceStatus(devId) {
     if (!devId) return;
@@ -129,14 +145,9 @@ function checkDeviceStatus(devId) {
     
     if (!statusEl) return;
     
-    // Show loading state
     statusEl.textContent = '⏳ Checking...';
     statusEl.className = 'device-status checking';
     
-    // First check from cache
-    const cachedStatus = deviceOnlineStatus[devId] || false;
-    
-    // Then check from Firebase directly
     db.ref(`user_data/${devId}`).once('value').then(snap => {
         if (snap.exists()) {
             const dev = snap.val();
@@ -146,21 +157,17 @@ function checkDeviceStatus(devId) {
             const isRecent = (currentTime - lastSeen) < 120000;
             const finalStatus = isOnline || isRecent;
             
-            // Update cache
             deviceOnlineStatus[devId] = finalStatus;
-            
-            // Update UI
             updateDeviceStatusUI(devId, finalStatus, lastSeen);
             
-            // Show toast with status
             showToast(`📱 ${devId}: ${finalStatus ? '🟢 Online' : '🔴 Offline'}`, finalStatus ? 'success' : 'error');
         } else {
-            statusEl.textContent = '❌ Device Not Found';
+            statusEl.textContent = '❌ Not Found';
             statusEl.className = 'device-status offline';
             showToast('❌ Device not found', 'error');
         }
-    }).catch(err => {
-        statusEl.textContent = '❌ Error checking';
+    }).catch(() => {
+        statusEl.textContent = '❌ Error';
         statusEl.className = 'device-status offline';
         showToast('❌ Error checking status', 'error');
     });
@@ -187,7 +194,7 @@ function updateDeviceStatusUI(devId, isOnline, lastSeen) {
 }
 
 // ============================================================
-// RENDER ALL
+// RENDER ALL - WITH THROTTLE
 // ============================================================
 function renderAll() {
     if (isRendering || isUpdatingUI) return;
@@ -286,30 +293,24 @@ function filterDevices(filter) {
 // GET DEVICE ONLINE STATUS
 // ============================================================
 function isDeviceOnline(devId) {
-    // First check cached status
     if (deviceOnlineStatus[devId] !== undefined) {
         return deviceOnlineStatus[devId];
     }
-    
-    // Fallback to checking from data
     const dev = cachedData.user_data?.[devId];
     if (!dev) return false;
-    
     const online = dev.isOnline || dev.online || false;
     const lastSeen = dev.last_online || dev.timestamp || 0;
     const isRecent = (Date.now() - lastSeen) < 120000;
-    
     const status = online || isRecent;
     deviceOnlineStatus[devId] = status;
     return status;
 }
 
 // ============================================================
-// GET DEVICE SERIAL NUMBER - CACHED
+// GET DEVICE SERIAL NUMBER
 // ============================================================
 function getDeviceSerial(devId) {
     if (deviceSerialMap[devId]) return deviceSerialMap[devId];
-    
     const dev = cachedData.user_data?.[devId];
     if (dev) {
         let serial = dev.user_serial || dev.uesr_serial || 0;
@@ -321,7 +322,7 @@ function getDeviceSerial(devId) {
 }
 
 // ============================================================
-// RENDER DEVICES - WITH ONLINE CHECK BUTTON
+// RENDER DEVICES - NO BLINK
 // ============================================================
 function renderDevices() {
     if (isUpdatingUI) return;
@@ -329,7 +330,6 @@ function renderDevices() {
     const devices = cachedData.user_data || {};
     allDeviceKeys = Object.keys(devices);
 
-    // Update online status for all devices
     updateDeviceOnlineStatus();
 
     allDeviceKeys.sort((a, b) => {
@@ -439,9 +439,9 @@ function renderDevices() {
                 </div>
 
                 <div class="device-info-grid" onclick="toggleDevice('${devId}')">
-                    <div class="item"><span>Device</span><b>${dev.Device_info || 'N/A'}</b></div>
-                    <div class="item"><span>SIM 1</span><b>${dev.numberSim1 || 'N/A'}</b></div>
-                    <div class="item"><span>SIM 2</span><b>${dev.numberSim2 || 'N/A'}</b></div>
+                    <div class="item"><span>Device</span><b>${dev.Device_info || dev.device_info || 'N/A'}</b></div>
+                    <div class="item"><span>SIM 1</span><b>${dev.numberSim1 || dev.sim1 || 'N/A'}</b></div>
+                    <div class="item"><span>SIM 2</span><b>${dev.numberSim2 || dev.sim2 || 'N/A'}</b></div>
                     ${serial > 0 ? `<div class="item"><span>Serial</span><b style="color:var(--gold);">${serial}</b></div>` : ''}
                 </div>
 
@@ -568,7 +568,7 @@ function renderDevices() {
 }
 
 // ============================================================
-// TOGGLE DEVICE - NO FULL RE-RENDER
+// TOGGLE DEVICE - NO BLINK
 // ============================================================
 function toggleDevice(devId) {
     if (isUpdatingUI) return;
@@ -586,9 +586,8 @@ function toggleDevice(devId) {
                 hint.textContent = expandedDevices[devId] ? '▲ Click to collapse' : '▼ Click to expand';
             }
             
-            // Auto-check status when expanding
             if (expandedDevices[devId]) {
-                setTimeout(() => checkDeviceStatus(devId), 100);
+                setTimeout(() => checkDeviceStatus(devId), 200);
             }
         }
     } finally {
