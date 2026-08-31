@@ -1,5 +1,5 @@
 <!-- ============================================================ -->
-<!-- index.html - Complete with All Features                      -->
+<!-- index.html - Complete Fixed - No Blink, No Auto Refresh     -->
 <!-- ============================================================ -->
 <!DOCTYPE html>
 <html lang="en">
@@ -81,7 +81,7 @@
                             <p class="panel-sub">Click on any device to expand & view details</p>
                         </div>
                         <div class="panel-stats">
-                            <button class="filter-btn" onclick="filterDevices('all')" id="filterAll">All</button>
+                            <button class="filter-btn active" onclick="filterDevices('all')" id="filterAll">All</button>
                             <button class="filter-btn" onclick="filterDevices('online')" id="filterOnline">🟢 Online</button>
                             <button class="filter-btn" onclick="filterDevices('offline')" id="filterOffline">🔴 Offline</button>
                             <span class="stat-item"><i class="fas fa-users"></i> <span id="panelDeviceCount">0</span></span>
@@ -91,7 +91,7 @@
                     <!-- Search Bar -->
                     <div class="search-container">
                         <i class="fas fa-search search-icon"></i>
-                        <input type="text" id="deviceSearchInput" placeholder="Search devices by ID, name, or serial..." class="search-input" />
+                        <input type="text" id="deviceSearchInput" placeholder="Search devices by ID, name, or serial..." class="search-input" autocomplete="off" />
                         <button class="search-clear-btn" id="searchClearBtn" style="display:none;">
                             <i class="fas fa-times"></i>
                         </button>
