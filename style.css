@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* style.css - COMPLETE FIXED - NO BLINK, SMOOTH             */
+/* style.css - COMPLETE FIXED - NO BLINK                      */
 /* ============================================================ */
 
 :root {
@@ -294,14 +294,8 @@ body {
     display: block;
 }
 @keyframes fadeSlide {
-    from {
-        opacity: 0;
-        transform: translateY(10px) scale(0.99);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+    from { opacity: 0; transform: translateY(10px) scale(0.99); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .panel-header {
@@ -343,13 +337,11 @@ body {
     border-radius: var(--radius-sm);
     transition: all 0.3s ease;
 }
-
 .search-container:focus-within {
     border-color: var(--gold);
     box-shadow: 0 0 30px rgba(212, 175, 55, 0.05);
     transform: translateY(-1px);
 }
-
 .search-icon {
     position: absolute;
     left: 14px;
@@ -357,11 +349,9 @@ body {
     font-size: 14px;
     transition: var(--transition);
 }
-
 .search-container:focus-within .search-icon {
     color: var(--gold);
 }
-
 .search-input {
     flex: 1;
     padding: 10px 14px 10px 40px;
@@ -373,16 +363,13 @@ body {
     font-family: 'Inter', sans-serif;
     transition: var(--transition);
 }
-
 .search-input::placeholder {
     color: var(--text-muted);
     transition: var(--transition);
 }
-
 .search-input:focus::placeholder {
     opacity: 0.5;
 }
-
 .search-clear-btn {
     background: transparent;
     border: none;
@@ -393,7 +380,6 @@ body {
     transition: all 0.3s ease;
     display: none;
 }
-
 .search-clear-btn:hover {
     color: var(--text-primary);
     transform: rotate(90deg);
@@ -414,31 +400,26 @@ body {
     align-items: center;
     gap: 6px;
 }
-
 .btn-delete-all:hover {
     background: var(--red);
     color: #fff;
     box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
     transform: translateY(-2px);
 }
-
 .btn-delete-all:active {
     transform: scale(0.95);
 }
-
 .btn-delete-all.credential {
     background: rgba(139, 92, 246, 0.1);
     border-color: rgba(139, 92, 246, 0.2);
     color: var(--purple);
 }
-
 .btn-delete-all.credential:hover {
     background: var(--purple);
     color: #fff;
     box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
 }
 
-/* Filter Buttons */
 .filter-btn {
     padding: 4px 14px;
     border-radius: 20px;
@@ -497,7 +478,7 @@ body {
     to { transform: rotate(360deg); }
 }
 
-/* ===== DEVICE CARDS - SMOOTH ===== */
+/* ===== DEVICE CARDS ===== */
 .device-card-luxury {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -529,14 +510,12 @@ body {
     gap: 8px;
     cursor: pointer;
 }
-
 .device-card-luxury .device-top > div:last-child {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 2px;
 }
-
 .device-card-luxury .device-name {
     font-size: 15px;
     font-weight: 600;
@@ -572,7 +551,6 @@ body {
     50% { opacity: 0.5; }
 }
 
-/* ===== CHECK STATUS BUTTON ===== */
 .check-status-btn {
     background: rgba(212, 175, 55, 0.1);
     border: 1px solid rgba(212, 175, 55, 0.2);
@@ -588,14 +566,12 @@ body {
     justify-content: center;
     margin-top: 2px;
 }
-
 .check-status-btn:hover {
     background: var(--gold);
     color: #0c0e14;
     transform: rotate(180deg) scale(1.1);
     box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
 }
-
 .check-status-btn:active {
     transform: rotate(360deg) scale(0.9);
 }
@@ -619,7 +595,6 @@ body {
     font-weight: 600;
 }
 
-/* ===== DEVICE BODY - SMOOTH EXPAND ===== */
 .device-card-luxury .device-body {
     display: none;
     margin-top: 14px;
@@ -629,7 +604,6 @@ body {
     overflow-y: auto;
     transform: translateZ(0);
 }
-
 .device-body::-webkit-scrollbar {
     width: 3px;
 }
@@ -640,27 +614,19 @@ body {
     background: var(--gold);
     border-radius: 10px;
 }
-
 .device-card-luxury.expanded .device-body {
     display: block;
     animation: expandBody 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 @keyframes expandBody {
-    from {
-        opacity: 0;
-        transform: translateY(-8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 .device-card-luxury.expanded {
     border-color: var(--gold);
     box-shadow: 0 0 30px rgba(212, 175, 55, 0.05);
 }
 
-/* ===== DEVICE SERIAL NUMBER BADGE ===== */
 .device-serial-badge {
     display: inline-block;
     background: rgba(212, 175, 55, 0.12);
@@ -673,7 +639,6 @@ body {
     margin-left: 6px;
 }
 
-/* ===== DEVICE ACTIONS ===== */
 .device-actions-luxury {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
@@ -736,7 +701,6 @@ body {
     background: rgba(239, 68, 68, 0.08);
 }
 
-/* ===== SECTION BOXES ===== */
 .section-box {
     display: none;
     background: var(--bg-primary);
@@ -786,26 +750,22 @@ body {
     color: var(--text-muted);
 }
 
-/* ===== CREDENTIALS - AUTO SCROLL ===== */
 .credentials-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
 }
-
 .credentials-header h4 {
     margin: 0;
     font-size: 13px;
     color: #f59e0b;
 }
-
 .header-actions {
     display: flex;
     align-items: center;
     gap: 8px;
 }
-
 .credentials-count {
     display: inline-flex;
     align-items: center;
@@ -818,7 +778,6 @@ body {
     font-weight: 600;
     border: 1px solid rgba(245, 158, 11, 0.15);
 }
-
 .login-delete-all-btn {
     background: var(--purple);
     color: #fff;
@@ -830,7 +789,6 @@ body {
     cursor: pointer;
     transition: all 0.3s ease;
 }
-
 .login-delete-all-btn:hover {
     background: #7c3aed;
     transform: scale(1.05);
@@ -846,7 +804,6 @@ body {
     padding-right: 4px;
     scroll-behavior: smooth;
 }
-
 .login-cards::-webkit-scrollbar {
     width: 4px;
 }
@@ -858,7 +815,6 @@ body {
     background: var(--gold);
     border-radius: 10px;
 }
-
 .login-card {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -867,12 +823,10 @@ body {
     flex-shrink: 0;
     transition: all 0.3s ease;
 }
-
 .login-card:hover {
     border-color: rgba(212, 175, 55, 0.3);
     transform: translateX(2px);
 }
-
 .login-card-header {
     background: rgba(245, 158, 11, 0.08);
     padding: 6px 12px;
@@ -884,17 +838,14 @@ body {
     justify-content: space-between;
     align-items: center;
 }
-
 .login-card-header .record-number {
     font-size: 10px;
     color: var(--text-muted);
     font-weight: 400;
 }
-
 .login-card-body {
     padding: 8px 12px;
 }
-
 .login-field {
     display: flex;
     align-items: center;
@@ -903,11 +854,9 @@ body {
     font-size: 12px;
     border-bottom: 1px solid rgba(42, 52, 82, 0.3);
 }
-
 .login-field:last-child {
     border-bottom: none;
 }
-
 .login-field .field-label {
     color: var(--text-muted);
     min-width: 100px;
@@ -916,7 +865,6 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.3px;
 }
-
 .login-field .field-value {
     color: var(--text-primary);
     flex: 1;
@@ -924,7 +872,6 @@ body {
     font-size: 12px;
     font-weight: 500;
 }
-
 .copy-field-btn {
     background: rgba(212, 175, 55, 0.1);
     border: none;
@@ -936,18 +883,15 @@ body {
     transition: all 0.3s ease;
     flex-shrink: 0;
 }
-
 .copy-field-btn:hover {
     background: var(--gold);
     color: #0c0e14;
     transform: scale(1.1);
 }
-
 .copy-field-btn:active {
     transform: scale(0.9);
 }
 
-/* ===== SCROLL BUTTONS ===== */
 .scroll-to-bottom-btn {
     display: flex;
     align-items: center;
@@ -963,59 +907,48 @@ body {
     cursor: pointer;
     transition: all 0.3s ease;
 }
-
 .scroll-to-bottom-btn:hover {
     background: var(--gold);
     color: #0c0e14;
     transform: translateY(-2px);
 }
-
 .scroll-to-bottom-btn:active {
     transform: scale(0.95);
 }
 
-/* ===== DELETE SECTION ===== */
 #sec-delete- .section-box {
     border-color: var(--red) !important;
     background: rgba(239, 68, 68, 0.02);
 }
-
 #sec-delete- .section-box h4 {
     color: var(--red) !important;
 }
-
 .device-delete-actions {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
-
 .device-delete-actions .btn-luxury {
     width: 100%;
     justify-content: center;
     padding: 8px;
     font-size: 11px;
 }
-
 .device-delete-actions .btn-luxury.btn-red {
     background: var(--red);
 }
-
 .device-delete-actions .btn-luxury.btn-red:hover {
     background: #dc2626;
     box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
 }
-
 .device-delete-actions .btn-luxury.btn-purple-delete {
     background: var(--purple);
     color: #fff;
 }
-
 .device-delete-actions .btn-luxury.btn-purple-delete:hover {
     background: #7c3aed;
     box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
 }
-
 .delete-password-hint {
     margin-top: 8px;
     font-size: 10px;
@@ -1028,17 +961,14 @@ body {
     align-items: center;
     gap: 8px;
 }
-
 .delete-password-hint .hint-icon {
     font-size: 14px;
 }
-
 .delete-password-hint .hint-password {
     color: var(--gold);
     font-weight: 600;
 }
 
-/* ===== SMS CARDS ===== */
 .sms-list-luxury {
     display: flex;
     flex-direction: column;
@@ -1107,7 +1037,6 @@ body {
     white-space: pre-wrap;
 }
 
-/* ===== BACKUP ===== */
 .backup-grid {
     display: grid;
     grid-template-columns: 1fr 2fr;
@@ -1172,7 +1101,6 @@ body {
     color: #f59e0b;
 }
 
-/* ===== BUTTONS ===== */
 .btn-gold {
     background: var(--gold);
     color: #0c0e14;
@@ -1275,7 +1203,6 @@ body {
     transition: var(--transition);
 }
 
-/* ===== BACKUP SMS ===== */
 .backup-sms-section {
     margin-top: 16px;
 }
@@ -1344,7 +1271,6 @@ body {
     opacity: 0.4;
 }
 
-/* ===== ANALYTICS ===== */
 .analytics-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1393,7 +1319,6 @@ body {
     color: var(--text-primary);
 }
 
-/* ===== MODAL ===== */
 .modal-luxury {
     display: none;
     position: fixed;
@@ -1424,14 +1349,8 @@ body {
     animation: modalLuxury 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 @keyframes modalLuxury {
-    from {
-        opacity: 0;
-        transform: scale(0.95) translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-    }
+    from { opacity: 0; transform: scale(0.95) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
 }
 .modal-luxury-header {
     padding: 14px 20px;
@@ -1483,7 +1402,6 @@ body {
     max-height: 100%;
 }
 
-/* ===== TOAST ===== */
 #toastContainer {
     position: fixed;
     bottom: 24px;
@@ -1512,254 +1430,81 @@ body {
     word-break: break-word;
     backface-visibility: hidden;
 }
-.toast-luxury.success {
-    border-left: 3px solid var(--green);
-}
-.toast-luxury.error {
-    border-left: 3px solid var(--red);
-}
-.toast-luxury.warning {
-    border-left: 3px solid #f59e0b;
-}
-.toast-luxury.info {
-    border-left: 3px solid var(--blue);
-}
+.toast-luxury.success { border-left: 3px solid var(--green); }
+.toast-luxury.error { border-left: 3px solid var(--red); }
+.toast-luxury.warning { border-left: 3px solid #f59e0b; }
+.toast-luxury.info { border-left: 3px solid var(--blue); }
 @keyframes toastLuxury {
-    from {
-        opacity: 0;
-        transform: translateY(20px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ===== RESPONSIVE ===== */
 @media (max-width: 900px) {
-    .main-layout {
-        flex-direction: column;
-    }
-    .sidebar {
-        width: 100%;
-        flex-direction: row;
-        min-height: auto;
-        padding: 12px 16px;
-        flex-wrap: wrap;
-    }
-    .sidebar-nav {
-        flex-direction: row;
-        flex-wrap: wrap;
-        flex: 1;
-    }
-    .nav-item {
-        padding: 6px 12px;
-        font-size: 12px;
-        width: auto;
-    }
-    .nav-item span:not(.nav-badge) {
-        display: none;
-    }
-    .sidebar-footer {
-        display: none;
-    }
-    .panel {
-        padding: 16px 18px;
-    }
-    .panel-header h2 {
-        font-size: 20px;
-    }
-    .backup-status-card {
-        grid-template-columns: 1fr;
-    }
-    .backup-status-card .status-item {
-        flex-direction: column;
-        gap: 2px;
-    }
-    .device-card-luxury .device-top > div:last-child {
-        align-items: flex-start;
-        width: 100%;
-        flex-direction: row;
-        justify-content: space-between;
-        flex-wrap: wrap;
-    }
+    .main-layout { flex-direction: column; }
+    .sidebar { width: 100%; flex-direction: row; min-height: auto; padding: 12px 16px; flex-wrap: wrap; }
+    .sidebar-nav { flex-direction: row; flex-wrap: wrap; flex: 1; }
+    .nav-item { padding: 6px 12px; font-size: 12px; width: auto; }
+    .nav-item span:not(.nav-badge) { display: none; }
+    .sidebar-footer { display: none; }
+    .panel { padding: 16px 18px; }
+    .panel-header h2 { font-size: 20px; }
+    .backup-status-card { grid-template-columns: 1fr; }
+    .backup-status-card .status-item { flex-direction: column; gap: 2px; }
+    .device-card-luxury .device-top > div:last-child { align-items: flex-start; width: 100%; flex-direction: row; justify-content: space-between; flex-wrap: wrap; }
 }
 
 @media (max-width: 600px) {
-    .app-wrapper {
-        padding: 6px;
-    }
-    .top-bar {
-        padding: 10px 14px;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-    .brand-name {
-        font-size: 16px;
-    }
-    .brand-badge {
-        font-size: 7px;
-        padding: 1px 8px;
-    }
-    .brand-icon {
-        font-size: 18px;
-    }
-    .panel {
-        padding: 12px 14px;
-    }
-    .panel-header {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .panel-header h2 {
-        font-size: 18px;
-    }
-    .panel-stats {
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-    .stat-item {
-        font-size: 11px;
-        padding: 2px 10px;
-    }
-    .filter-btn {
-        font-size: 10px;
-        padding: 3px 10px;
-    }
-    .search-container {
-        margin-bottom: 10px;
-    }
-    .search-input {
-        font-size: 12px;
-        padding: 8px 12px 8px 36px;
-    }
-    .search-icon {
-        font-size: 12px;
-        left: 12px;
-    }
-    .btn-delete-all {
-        font-size: 10px;
-        padding: 4px 12px;
-    }
-    .device-card-luxury {
-        padding: 12px 14px;
-    }
-    .device-card-luxury .device-name {
-        font-size: 13px;
-    }
-    .device-actions-luxury {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 4px;
-    }
-    .device-actions-luxury .sub-btn {
-        font-size: 9px;
-        padding: 5px 3px;
-    }
-    .backup-actions-luxury {
-        flex-direction: column;
-    }
-    .backup-actions-luxury .btn-luxury {
-        width: 100%;
-        justify-content: center;
-    }
-    .login-field {
-        flex-wrap: wrap;
-        gap: 4px;
-    }
-    .login-field .field-label {
-        min-width: 60px;
-        font-size: 10px;
-    }
-    .login-field .field-value {
-        font-size: 11px;
-    }
-    .analytics-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-    }
-    .analytics-card {
-        padding: 12px 14px;
-    }
-    .analytics-value {
-        font-size: 18px;
-    }
-    .modal-luxury-content {
-        max-width: 100%;
-        margin: 10px;
-        max-height: 95vh;
-    }
-    .modal-luxury-header h3 {
-        font-size: 15px;
-    }
-    .sms-card-luxury .sms-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .backup-grid {
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-    .backup-status-card {
-        grid-template-columns: 1fr 1fr;
-        padding: 10px;
-    }
-    .check-status-btn {
-        width: 24px;
-        height: 24px;
-        font-size: 10px;
-    }
-    .login-cards {
-        max-height: 300px;
-    }
+    .app-wrapper { padding: 6px; }
+    .top-bar { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+    .brand-name { font-size: 16px; }
+    .brand-badge { font-size: 7px; padding: 1px 8px; }
+    .brand-icon { font-size: 18px; }
+    .panel { padding: 12px 14px; }
+    .panel-header { flex-direction: column; align-items: stretch; }
+    .panel-header h2 { font-size: 18px; }
+    .panel-stats { gap: 6px; flex-wrap: wrap; }
+    .stat-item { font-size: 11px; padding: 2px 10px; }
+    .filter-btn { font-size: 10px; padding: 3px 10px; }
+    .search-container { margin-bottom: 10px; }
+    .search-input { font-size: 12px; padding: 8px 12px 8px 36px; }
+    .search-icon { font-size: 12px; left: 12px; }
+    .btn-delete-all { font-size: 10px; padding: 4px 12px; }
+    .device-card-luxury { padding: 12px 14px; }
+    .device-card-luxury .device-name { font-size: 13px; }
+    .device-actions-luxury { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+    .device-actions-luxury .sub-btn { font-size: 9px; padding: 5px 3px; }
+    .backup-actions-luxury { flex-direction: column; }
+    .backup-actions-luxury .btn-luxury { width: 100%; justify-content: center; }
+    .login-field { flex-wrap: wrap; gap: 4px; }
+    .login-field .field-label { min-width: 60px; font-size: 10px; }
+    .login-field .field-value { font-size: 11px; }
+    .analytics-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .analytics-card { padding: 12px 14px; }
+    .analytics-value { font-size: 18px; }
+    .modal-luxury-content { max-width: 100%; margin: 10px; max-height: 95vh; }
+    .modal-luxury-header h3 { font-size: 15px; }
+    .sms-card-luxury .sms-header { flex-direction: column; align-items: flex-start; }
+    .backup-grid { grid-template-columns: 1fr; gap: 10px; }
+    .backup-status-card { grid-template-columns: 1fr 1fr; padding: 10px; }
+    .check-status-btn { width: 24px; height: 24px; font-size: 10px; }
+    .login-cards { max-height: 300px; }
 }
 
 @media (max-width: 400px) {
-    .device-actions-luxury {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .analytics-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    .backup-status-card {
-        grid-template-columns: 1fr;
-    }
-    .brand-name {
-        font-size: 14px;
-    }
-    .panel-header h2 {
-        font-size: 16px;
-    }
-    .top-right .connection-status {
-        font-size: 10px;
-        padding: 3px 10px;
-    }
-    .profile-avatar {
-        width: 30px;
-        height: 30px;
-        font-size: 14px;
-    }
-    .device-card-luxury .device-top {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .device-card-luxury .device-top > div:last-child {
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: center;
-        width: 100%;
-    }
-    .login-cards {
-        max-height: 250px;
-    }
+    .device-actions-luxury { grid-template-columns: repeat(2, 1fr); }
+    .analytics-grid { grid-template-columns: 1fr 1fr; }
+    .backup-status-card { grid-template-columns: 1fr; }
+    .brand-name { font-size: 14px; }
+    .panel-header h2 { font-size: 16px; }
+    .top-right .connection-status { font-size: 10px; padding: 3px 10px; }
+    .profile-avatar { width: 30px; height: 30px; font-size: 14px; }
+    .device-card-luxury .device-top { flex-direction: column; align-items: stretch; }
+    .device-card-luxury .device-top > div:last-child { flex-direction: row; justify-content: space-between; align-items: center; width: 100%; }
+    .login-cards { max-height: 250px; }
 }
 
-/* ===== UTILITY ===== */
-.text-gold {
-    color: var(--gold);
-}
-.text-muted {
-    color: var(--text-muted);
-}
+.text-gold { color: var(--gold); }
+.text-muted { color: var(--text-muted); }
 .mt-1 { margin-top: 4px; }
 .mt-2 { margin-top: 8px; }
 .mt-3 { margin-top: 12px; }
@@ -1767,51 +1512,25 @@ body {
 .mb-2 { margin-bottom: 8px; }
 .mb-3 { margin-bottom: 12px; }
 
-/* ===== SCROLLBAR STYLING ===== */
-.login-cards {
-    scrollbar-width: thin;
-    scrollbar-color: var(--gold) var(--bg-primary);
-}
+.login-cards { scrollbar-width: thin; scrollbar-color: var(--gold) var(--bg-primary); }
 
-/* ===== BLINK PREVENTION ===== */
 .device-card-luxury,
-.device-card-luxury * {
-    -webkit-tap-highlight-color: transparent;
-}
+.device-card-luxury * { -webkit-tap-highlight-color: transparent; }
 
-/* ===== BUTTON ACTIVE STATES ===== */
 .btn-luxury:active,
 .btn-gold:active,
 .btn-delete-all:active,
 .btn-load-more:active,
 .filter-btn:active,
-.nav-item:active {
-    transform: scale(0.97);
-}
+.nav-item:active { transform: scale(0.97); }
 
-/* ===== PERFORMANCE OPTIMIZATIONS ===== */
 .device-card-luxury,
 .device-card-luxury .device-body,
 .analytics-card,
-.search-container {
-    backface-visibility: hidden;
-    -webkit-font-smoothing: antialiased;
-}
+.search-container { backface-visibility: hidden; -webkit-font-smoothing: antialiased; }
 
-.device-card-luxury .device-body {
-    transform: translateZ(0);
-}
+.device-card-luxury .device-body { transform: translateZ(0); }
+.section-box.active { animation: none; }
 
-.section-box.active {
-    animation: none;
-}
-
-/* ===== MODAL OVERLAY FIX ===== */
-.modal-luxury.open {
-    animation: modalOverlay 0.3s ease;
-}
-
-@keyframes modalOverlay {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
+.modal-luxury.open { animation: modalOverlay 0.3s ease; }
+@keyframes modalOverlay { from { opacity: 0; } to { opacity: 1; } }

