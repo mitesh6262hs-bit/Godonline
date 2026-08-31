@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* style.css - All Styles                                       */
+/* style.css - All Styles - Lightning Fast                      */
 /* ============================================================ */
 
 * {
@@ -31,21 +31,21 @@
     --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
     --radius: 14px;
     --radius-sm: 8px;
-    --transition: 0.25s ease;
+    --transition: 0.2s ease;
 }
 
 body {
     background: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
-    padding: 16px;
+    padding: 12px;
     padding-bottom: 40px;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
 }
 ::-webkit-scrollbar-track {
     background: var(--bg-secondary);
@@ -68,25 +68,25 @@ body {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
-    padding: 16px 20px;
+    padding: 14px 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
     box-shadow: var(--shadow);
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
 .header-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
 }
 
 .logo {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 800;
     color: var(--green);
     letter-spacing: -0.5px;
@@ -97,18 +97,18 @@ body {
 }
 
 .sub {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-secondary);
     background: var(--bg-input);
-    padding: 2px 12px;
+    padding: 2px 10px;
     border-radius: 20px;
     border: 1px solid var(--border-color);
 }
 
 .status-badge {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 6px 16px;
+    padding: 5px 14px;
     border-radius: 30px;
     display: flex;
     align-items: center;
@@ -129,8 +129,8 @@ body {
 }
 
 .status-badge .dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     display: inline-block;
 }
@@ -160,8 +160,8 @@ body {
 .master-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-bottom: 16px;
+    gap: 8px;
+    margin-bottom: 14px;
 }
 
 @media (max-width: 480px) {
@@ -174,10 +174,10 @@ body {
 }
 
 .master-btn {
-    padding: 13px 10px;
+    padding: 11px 8px;
     border-radius: var(--radius-sm);
     font-weight: 700;
-    font-size: 13px;
+    font-size: 12px;
     border: 1px solid var(--border-color);
     background: var(--bg-card);
     color: var(--text-secondary);
@@ -186,14 +186,13 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     box-shadow: var(--shadow);
 }
 
 .master-btn:hover {
     background: var(--bg-card-hover);
     color: var(--text-primary);
-    transform: translateY(-1px);
 }
 
 .master-btn:active {
@@ -208,9 +207,9 @@ body {
 
 .master-btn .badge {
     background: var(--bg-input);
-    padding: 0 10px;
+    padding: 0 8px;
     border-radius: 20px;
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-secondary);
 }
 
@@ -227,20 +226,20 @@ body {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
-    padding: 16px 18px;
-    margin-bottom: 16px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
     box-shadow: var(--shadow);
 }
 
 .panel.active {
     display: block;
-    animation: fadeUp 0.3s ease;
+    animation: fadeUp 0.25s ease;
 }
 
 @keyframes fadeUp {
     from {
         opacity: 0;
-        transform: translateY(12px);
+        transform: translateY(8px);
     }
     to {
         opacity: 1;
@@ -252,28 +251,24 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
 }
 
 .panel-header h3 {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     display: flex;
     align-items: center;
-    gap: 8px;
-}
-
-.panel-header h3 i {
-    color: var(--blue);
+    gap: 6px;
 }
 
 .panel-header .count {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-secondary);
     background: var(--bg-input);
-    padding: 2px 14px;
+    padding: 2px 12px;
     border-radius: 20px;
     border: 1px solid var(--border-color);
 }
@@ -285,8 +280,8 @@ body {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 14px 16px;
-    margin-bottom: 10px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
     cursor: pointer;
     transition: var(--transition);
 }
@@ -297,7 +292,7 @@ body {
 
 .device-card.expanded {
     border-color: var(--green);
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.08);
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.06);
 }
 
 .device-header {
@@ -305,20 +300,20 @@ body {
     justify-content: space-between;
     align-items: flex-start;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
 }
 
 .device-title {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--green);
     word-break: break-all;
 }
 
 .device-status {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
-    padding: 3px 12px;
+    padding: 2px 10px;
     border-radius: 20px;
 }
 
@@ -336,23 +331,23 @@ body {
 
 .device-info-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 6px;
-    margin-top: 10px;
-    font-size: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 11px;
 }
 
 .device-info-grid .item span {
     display: block;
-    font-size: 10px;
+    font-size: 9px;
     color: var(--text-muted);
     text-transform: uppercase;
 }
 
 .device-body {
     display: none;
-    margin-top: 12px;
-    padding-top: 12px;
+    margin-top: 10px;
+    padding-top: 10px;
     border-top: 1px dashed var(--border-color);
 }
 
@@ -363,15 +358,15 @@ body {
 /* Action Buttons inside device */
 .device-actions {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 6px;
-    margin-bottom: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 4px;
+    margin-bottom: 8px;
 }
 
 .device-actions .sub-btn {
-    padding: 7px 4px;
+    padding: 5px 4px;
     border-radius: var(--radius-sm);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     border: 1px solid var(--border-color);
     background: var(--bg-input);
@@ -418,22 +413,22 @@ body {
 }
 
 /* ============================================================
-   SMS CARDS
+   SMS CARDS - FAST RENDER
    ============================================================ */
 .sms-card-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    max-height: 380px;
+    gap: 6px;
+    max-height: 350px;
     overflow-y: auto;
-    padding-right: 4px;
+    padding-right: 2px;
 }
 
 .sms-card {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 10px 14px;
+    padding: 8px 12px;
     transition: var(--transition);
 }
 
@@ -445,29 +440,29 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .sms-sender {
     font-weight: 700;
     color: var(--blue);
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .sms-sender .device-tag {
     color: var(--green);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
 }
 
 .sms-meta {
-    font-size: 10px;
+    font-size: 9px;
     color: var(--text-muted);
 }
 
 .sms-body {
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: 12px;
+    line-height: 1.4;
     color: var(--text-primary);
     word-wrap: break-word;
     white-space: pre-wrap;
@@ -478,14 +473,14 @@ body {
    ============================================================ */
 .load-more-btn {
     width: 100%;
-    padding: 10px;
-    margin-top: 10px;
+    padding: 8px;
+    margin-top: 8px;
     background: var(--bg-input);
     color: var(--blue);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     font-weight: 600;
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
     transition: var(--transition);
 }
@@ -495,33 +490,28 @@ body {
     border-color: var(--blue);
 }
 
-.load-more-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
 /* ============================================================
    BACKUP PANEL
    ============================================================ */
 .backup-device-select {
-    margin-bottom: 14px;
+    margin-bottom: 10px;
 }
 
 .backup-device-select label {
     display: block;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-secondary);
-    margin-bottom: 4px;
+    margin-bottom: 3px;
 }
 
 .backup-device-select select {
     width: 100%;
-    padding: 10px 14px;
+    padding: 8px 12px;
     background: var(--bg-input);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    font-size: 13px;
+    font-size: 12px;
     outline: none;
     cursor: pointer;
 }
@@ -533,16 +523,16 @@ body {
 .backup-status-box {
     background: var(--bg-input);
     border-radius: var(--radius-sm);
-    padding: 12px 14px;
-    margin-bottom: 14px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
     border: 1px solid var(--border-color);
 }
 
 .backup-status-box .status-row {
     display: flex;
     justify-content: space-between;
-    padding: 4px 0;
-    font-size: 13px;
+    padding: 3px 0;
+    font-size: 12px;
 }
 
 .backup-status-box .label {
@@ -562,7 +552,7 @@ body {
 .backup-actions {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px;
+    gap: 6px;
 }
 
 @media (max-width: 480px) {
@@ -572,17 +562,17 @@ body {
 }
 
 .cmd-btn {
-    padding: 10px 14px;
+    padding: 8px 12px;
     border: none;
     border-radius: var(--radius-sm);
     font-weight: 700;
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
     transition: var(--transition);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 4px;
 }
 
 .cmd-btn:hover {
@@ -627,11 +617,11 @@ body {
     width: 100vw;
     height: 100vh;
     background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(4px);
     z-index: 9999;
     justify-content: center;
     align-items: center;
-    padding: 16px;
+    padding: 12px;
 }
 
 .modal-overlay.open {
@@ -648,13 +638,13 @@ body {
     display: flex;
     flex-direction: column;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-    animation: modalIn 0.25s ease;
+    animation: modalIn 0.2s ease;
 }
 
 @keyframes modalIn {
     from {
         opacity: 0;
-        transform: scale(0.95) translateY(20px);
+        transform: scale(0.95) translateY(15px);
     }
     to {
         opacity: 1;
@@ -663,7 +653,7 @@ body {
 }
 
 .modal-header {
-    padding: 14px 18px;
+    padding: 12px 16px;
     background: var(--bg-input);
     border-bottom: 1px solid var(--border-color);
     display: flex;
@@ -673,7 +663,7 @@ body {
 }
 
 .modal-header h3 {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
 }
 
@@ -681,10 +671,10 @@ body {
     background: rgba(239, 68, 68, 0.15);
     color: var(--red);
     border: 1px solid var(--red);
-    padding: 4px 14px;
+    padding: 3px 12px;
     border-radius: 20px;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 11px;
     cursor: pointer;
     transition: var(--transition);
 }
@@ -695,7 +685,7 @@ body {
 }
 
 .modal-body {
-    padding: 14px 18px;
+    padding: 12px 16px;
     overflow-y: auto;
     flex: 1;
     max-height: 70vh;
@@ -706,15 +696,15 @@ body {
    ============================================================ */
 .loading-placeholder {
     text-align: center;
-    padding: 30px 0;
+    padding: 20px 0;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .loading-placeholder i {
-    font-size: 24px;
+    font-size: 20px;
     display: block;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     color: var(--purple);
 }
 
@@ -723,13 +713,13 @@ body {
    ============================================================ */
 #toastContainer {
     position: fixed;
-    bottom: 24px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 99999;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
     max-width: 90%;
     pointer-events: none;
@@ -738,30 +728,30 @@ body {
 .toast {
     background: var(--bg-card);
     color: var(--text-primary);
-    padding: 10px 20px;
+    padding: 8px 18px;
     border-radius: var(--radius-sm);
-    font-size: 13px;
+    font-size: 12px;
     border: 1px solid var(--border-color);
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
     pointer-events: auto;
-    animation: toastIn 0.3s ease;
+    animation: toastIn 0.25s ease;
     text-align: center;
 }
 
 .toast.success {
-    border-left: 4px solid var(--green);
+    border-left: 3px solid var(--green);
 }
 .toast.error {
-    border-left: 4px solid var(--red);
+    border-left: 3px solid var(--red);
 }
 .toast.warning {
-    border-left: 4px solid var(--orange);
+    border-left: 3px solid var(--orange);
 }
 
 @keyframes toastIn {
     from {
         opacity: 0;
-        transform: translateY(16px);
+        transform: translateY(12px);
     }
     to {
         opacity: 1;
@@ -774,29 +764,24 @@ body {
    ============================================================ */
 .no-data {
     text-align: center;
-    padding: 20px 0;
+    padding: 16px 0;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .no-data i {
-    font-size: 28px;
+    font-size: 22px;
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     color: var(--border-color);
 }
 
-.hidden {
-    display: none !important;
-}
-
-/* Device section box */
 .section-box {
     display: none;
     background: var(--bg-input);
     border-radius: var(--radius-sm);
-    padding: 12px;
-    margin-top: 10px;
+    padding: 10px;
+    margin-top: 8px;
     border: 1px solid var(--border-color);
 }
 
@@ -805,25 +790,24 @@ body {
 }
 
 .section-box h4 {
-    font-size: 13px;
-    margin-bottom: 10px;
+    font-size: 12px;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
 
-/* Forms inside sections */
 .section-box input,
 .section-box select,
 .section-box textarea {
     width: 100%;
-    padding: 8px 12px;
-    margin: 4px 0 8px 0;
+    padding: 6px 10px;
+    margin: 3px 0 6px 0;
     background: var(--bg-card);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    font-size: 13px;
+    font-size: 12px;
     outline: none;
 }
 
@@ -835,16 +819,17 @@ body {
 
 .section-box textarea {
     resize: vertical;
-    min-height: 60px;
+    min-height: 50px;
 }
 
 .section-box .cmd-btn {
-    margin-top: 4px;
+    margin-top: 3px;
+    padding: 6px 10px;
+    font-size: 11px;
 }
 
-/* Table for login data */
 .table-wrapper {
-    max-height: 250px;
+    max-height: 200px;
     overflow-y: auto;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
@@ -858,9 +843,9 @@ table {
 th,
 td {
     border-bottom: 1px solid var(--border-color);
-    padding: 6px 10px;
+    padding: 4px 8px;
     text-align: left;
-    font-size: 11px;
+    font-size: 10px;
 }
 
 th {
@@ -875,19 +860,18 @@ tr:nth-child(even) {
     background: rgba(255, 255, 255, 0.02);
 }
 
-/* Backup SMS list items */
 .backup-sms-item {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 10px 14px;
-    margin-bottom: 6px;
+    padding: 8px 12px;
+    margin-bottom: 5px;
 }
 
 .backup-sms-item .sms-header {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-muted);
 }
 
@@ -897,17 +881,16 @@ tr:nth-child(even) {
 }
 
 .backup-sms-item .sms-body {
-    font-size: 13px;
-    margin-top: 4px;
+    font-size: 12px;
+    margin-top: 3px;
     color: var(--text-primary);
     word-wrap: break-word;
 }
 
-/* Small button */
 .btn-sm {
-    padding: 4px 14px;
+    padding: 3px 12px;
     border-radius: 20px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     cursor: pointer;
     border: none;
