@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Fixed: No Auto-Refresh Jitter, Serial Numbers      */
+/* app.js - Fixed: Device Click par Online/Offline Check        */
 /* ============================================================ */
 
 // ============================================================
@@ -42,6 +42,7 @@ let smsFilterDevice = null;
 let deviceSerialMap = {};
 let isRendering = false;
 let isUpdatingUI = false;
+let deviceOnlineStatus = {};
 
 // ============================================================
 // DOM REFS
@@ -64,7 +65,7 @@ db.ref(".info/connected").on("value", (snap) => {
 });
 
 // ============================================================
-// MAIN DATA LISTENER - NO AUTO REFRESH JITTER
+// MAIN DATA LISTENER
 // ============================================================
 let firstLoad = true;
 let lastData = {};
@@ -78,6 +79,9 @@ db.ref().on("value", (snapshot) => {
     
     cachedData = newData;
     lastData = JSON.parse(JSON.stringify(newData));
+
+    // Update device online status
+    updateDeviceOnlineStatus();
 
     const active = document.activeElement;
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
@@ -96,13 +100,101 @@ db.ref().on("value", (snapshot) => {
 });
 
 // ============================================================
-// RENDER ALL - WITH CACHE
+// UPDATE DEVICE ONLINE STATUS - REAL TIME CHECK
+// ============================================================
+function updateDeviceOnlineStatus() {
+    const devices = cachedData.user_data || {};
+    Object.keys(devices).forEach(devId => {
+        const dev = devices[devId];
+        // Check online status from multiple sources
+        const isOnline = dev.isOnline || dev.online || false;
+        const lastSeen = dev.last_online || dev.timestamp || 0;
+        const currentTime = Date.now();
+        
+        // If last seen within 2 minutes, consider online
+        const isRecent = (currentTime - lastSeen) < 120000;
+        
+        deviceOnlineStatus[devId] = isOnline || isRecent;
+    });
+}
+
+// ============================================================
+// CHECK DEVICE ONLINE STATUS - CLICK PAR CHECK
+// ============================================================
+function checkDeviceStatus(devId) {
+    if (!devId) return;
+    
+    const statusEl = document.getElementById(`status-${devId}`);
+    const timeEl = document.getElementById(`time-${devId}`);
+    
+    if (!statusEl) return;
+    
+    // Show loading state
+    statusEl.textContent = '⏳ Checking...';
+    statusEl.className = 'device-status checking';
+    
+    // First check from cache
+    const cachedStatus = deviceOnlineStatus[devId] || false;
+    
+    // Then check from Firebase directly
+    db.ref(`user_data/${devId}`).once('value').then(snap => {
+        if (snap.exists()) {
+            const dev = snap.val();
+            const isOnline = dev.isOnline || dev.online || false;
+            const lastSeen = dev.last_online || dev.timestamp || 0;
+            const currentTime = Date.now();
+            const isRecent = (currentTime - lastSeen) < 120000;
+            const finalStatus = isOnline || isRecent;
+            
+            // Update cache
+            deviceOnlineStatus[devId] = finalStatus;
+            
+            // Update UI
+            updateDeviceStatusUI(devId, finalStatus, lastSeen);
+            
+            // Show toast with status
+            showToast(`📱 ${devId}: ${finalStatus ? '🟢 Online' : '🔴 Offline'}`, finalStatus ? 'success' : 'error');
+        } else {
+            statusEl.textContent = '❌ Device Not Found';
+            statusEl.className = 'device-status offline';
+            showToast('❌ Device not found', 'error');
+        }
+    }).catch(err => {
+        statusEl.textContent = '❌ Error checking';
+        statusEl.className = 'device-status offline';
+        showToast('❌ Error checking status', 'error');
+    });
+}
+
+// ============================================================
+// UPDATE DEVICE STATUS UI
+// ============================================================
+function updateDeviceStatusUI(devId, isOnline, lastSeen) {
+    const statusEl = document.getElementById(`status-${devId}`);
+    const timeEl = document.getElementById(`time-${devId}`);
+    
+    if (statusEl) {
+        const statusText = isOnline ? '● Online' : '● Offline';
+        const statusClass = isOnline ? 'online' : 'offline';
+        statusEl.textContent = statusText;
+        statusEl.className = `device-status ${statusClass}`;
+    }
+    
+    if (timeEl) {
+        const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+        timeEl.textContent = `⏱ ${timeStr}`;
+    }
+}
+
+// ============================================================
+// RENDER ALL
 // ============================================================
 function renderAll() {
     if (isRendering || isUpdatingUI) return;
     isRendering = true;
     
     try {
+        updateDeviceOnlineStatus();
         renderDevices();
         renderAllSms();
         renderAnalytics();
@@ -193,12 +285,23 @@ function filterDevices(filter) {
 // ============================================================
 // GET DEVICE ONLINE STATUS
 // ============================================================
-function isDeviceOnline(dev) {
+function isDeviceOnline(devId) {
+    // First check cached status
+    if (deviceOnlineStatus[devId] !== undefined) {
+        return deviceOnlineStatus[devId];
+    }
+    
+    // Fallback to checking from data
+    const dev = cachedData.user_data?.[devId];
     if (!dev) return false;
+    
     const online = dev.isOnline || dev.online || false;
-    const lastSeen = dev.last_online || dev.timestamp;
-    if (!online && lastSeen && (Date.now() - lastSeen < 120000)) return true;
-    return online;
+    const lastSeen = dev.last_online || dev.timestamp || 0;
+    const isRecent = (Date.now() - lastSeen) < 120000;
+    
+    const status = online || isRecent;
+    deviceOnlineStatus[devId] = status;
+    return status;
 }
 
 // ============================================================
@@ -218,7 +321,7 @@ function getDeviceSerial(devId) {
 }
 
 // ============================================================
-// RENDER DEVICES - FIXED: NO JITTER, WITH SERIAL NUMBERS
+// RENDER DEVICES - WITH ONLINE CHECK BUTTON
 // ============================================================
 function renderDevices() {
     if (isUpdatingUI) return;
@@ -226,7 +329,9 @@ function renderDevices() {
     const devices = cachedData.user_data || {};
     allDeviceKeys = Object.keys(devices);
 
-    // Sort devices by serial number (descending - newest first)
+    // Update online status for all devices
+    updateDeviceOnlineStatus();
+
     allDeviceKeys.sort((a, b) => {
         const serialA = getDeviceSerial(a);
         const serialB = getDeviceSerial(b);
@@ -234,15 +339,9 @@ function renderDevices() {
     });
 
     if (currentFilter === 'online') {
-        filteredDeviceKeys = allDeviceKeys.filter(id => {
-            const d = devices[id];
-            return isDeviceOnline(d);
-        });
+        filteredDeviceKeys = allDeviceKeys.filter(id => isDeviceOnline(id));
     } else if (currentFilter === 'offline') {
-        filteredDeviceKeys = allDeviceKeys.filter(id => {
-            const d = devices[id];
-            return !isDeviceOnline(d);
-        });
+        filteredDeviceKeys = allDeviceKeys.filter(id => !isDeviceOnline(id));
     } else {
         filteredDeviceKeys = [...allDeviceKeys];
     }
@@ -264,7 +363,7 @@ function renderDevices() {
         const serial = getDeviceSerial(devId);
         const deviceNumber = start + index + 1;
 
-        const online = isDeviceOnline(dev);
+        const online = isDeviceOnline(devId);
         const lastSeen = dev.last_online || dev.timestamp;
         const statusClass = online ? 'online' : 'offline';
         const statusText = online ? '● Online' : '● Offline';
@@ -331,8 +430,11 @@ function renderDevices() {
                         </div>
                     </div>
                     <div style="text-align:right;">
-                        <span class="device-status ${statusClass}">${statusText}</span>
-                        <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">⏱ ${timeStr}</div>
+                        <span class="device-status ${statusClass}" id="status-${devId}">${statusText}</span>
+                        <div style="font-size:9px;color:var(--text-muted);margin-top:2px;" id="time-${devId}">⏱ ${timeStr}</div>
+                        <button class="check-status-btn" onclick="event.stopPropagation();checkDeviceStatus('${devId}')" title="Check Online Status">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -466,32 +568,27 @@ function renderDevices() {
 }
 
 // ============================================================
-// TOGGLE DEVICE - FIXED: NO FULL RE-RENDER, NO BLINK
+// TOGGLE DEVICE - NO FULL RE-RENDER
 // ============================================================
 function toggleDevice(devId) {
     if (isUpdatingUI) return;
     isUpdatingUI = true;
     
     try {
-        // Toggle expanded state
         expandedDevices[devId] = !expandedDevices[devId];
         
-        // Find the card
         const card = document.getElementById(`card-${devId}`);
         if (card) {
-            // Toggle expanded class
             card.classList.toggle('expanded');
             
-            // Update hint text
             const hint = card.querySelector('.device-top .device-name + div');
             if (hint) {
                 hint.textContent = expandedDevices[devId] ? '▲ Click to collapse' : '▼ Click to expand';
             }
             
-            // Update device info grid click handler - no re-render needed
-            const infoGrid = card.querySelector('.device-info-grid');
-            if (infoGrid) {
-                // Keep the onclick attribute as is
+            // Auto-check status when expanding
+            if (expandedDevices[devId]) {
+                setTimeout(() => checkDeviceStatus(devId), 100);
             }
         }
     } finally {
@@ -500,7 +597,7 @@ function toggleDevice(devId) {
 }
 
 // ============================================================
-// SET TAB - NO FULL RE-RENDER
+// SET TAB
 // ============================================================
 function setTab(devId, tab) {
     if (isUpdatingUI) return;
@@ -517,13 +614,11 @@ function setTab(devId, tab) {
         const card = document.getElementById(`card-${devId}`);
         if (!card) return;
 
-        // Update button states
         const buttons = card.querySelectorAll('.device-actions-luxury .sub-btn');
         buttons.forEach(btn => {
             btn.className = btn.className.replace(/active-\w+/g, '').trim();
         });
 
-        // Update section visibility
         const sections = card.querySelectorAll('.section-box');
         sections.forEach(sec => sec.classList.remove('active'));
 

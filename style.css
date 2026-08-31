@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* style.css - Luxury Interior Panel - Fixed                    */
+/* style.css - Luxury Interior Panel - Complete Fixed Version   */
 /* ============================================================ */
 
 :root {
@@ -382,6 +382,14 @@ body {
     gap: 8px;
     cursor: pointer;
 }
+
+.device-card-luxury .device-top > div:last-child {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
 .device-card-luxury .device-name {
     font-size: 15px;
     font-weight: 600;
@@ -403,6 +411,45 @@ body {
     background: rgba(239, 68, 68, 0.12);
     color: var(--red);
     border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.device-status.checking {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ===== CHECK STATUS BUTTON ===== */
+.check-status-btn {
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    color: var(--gold);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+}
+
+.check-status-btn:hover {
+    background: var(--gold);
+    color: #0c0e14;
+    transform: rotate(180deg);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+}
+
+.check-status-btn:active {
+    transform: rotate(360deg);
 }
 
 .device-card-luxury .device-info-grid {
@@ -1104,6 +1151,13 @@ body {
         flex-direction: column;
         gap: 2px;
     }
+    .device-card-luxury .device-top > div:last-child {
+        align-items: flex-start;
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
 }
 
 @media (max-width: 600px) {
@@ -1209,6 +1263,11 @@ body {
         grid-template-columns: 1fr 1fr;
         padding: 10px;
     }
+    .check-status-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 10px;
+    }
 }
 
 @media (max-width: 400px) {
@@ -1235,6 +1294,16 @@ body {
         width: 30px;
         height: 30px;
         font-size: 14px;
+    }
+    .device-card-luxury .device-top {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .device-card-luxury .device-top > div:last-child {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
     }
 }
 
@@ -1272,3 +1341,49 @@ body {
 .mb-1 { margin-bottom: 4px; }
 .mb-2 { margin-bottom: 8px; }
 .mb-3 { margin-bottom: 12px; }
+
+/* ===== ANIMATION FOR STATUS CHECK ===== */
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.check-status-btn.loading {
+    animation: spin-slow 1s linear infinite;
+}
+
+/* ===== DEVICE CARD HOVER EFFECTS ===== */
+.device-card-luxury .device-top .device-status {
+    transition: all 0.3s ease;
+}
+
+.device-card-luxury:hover .device-top .device-status {
+    transform: scale(1.05);
+}
+
+/* ===== RESPONSIVE FONT SIZES ===== */
+@media (max-width: 500px) {
+    .device-card-luxury .device-status {
+        font-size: 10px;
+        padding: 2px 10px;
+    }
+    .device-card-luxury .device-name {
+        font-size: 12px;
+    }
+    .device-serial-badge {
+        font-size: 9px;
+        padding: 1px 8px;
+    }
+    .section-box h4 {
+        font-size: 12px;
+    }
+    .section-box input,
+    .section-box select,
+    .section-box textarea {
+        font-size: 11px;
+        padding: 6px 10px;
+    }
+    .backup-status-card .status-item {
+        font-size: 11px;
+    }
+}
