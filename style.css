@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* style.css - BASE STYLES                                     */
+/* style.css - COMPLETE BASE STYLES                            */
 /* ============================================================ */
 
 :root {
@@ -752,10 +752,19 @@ body {
     border-radius: var(--radius-sm);
     padding: 10px 14px;
     margin-bottom: 5px;
-    transition: var(--transition);
+    transition: all 0.3s ease;
+    position: relative;
 }
 .backup-sms-item:hover {
     border-color: rgba(212, 175, 55, 0.2);
+    transform: translateX(2px);
+}
+.backup-sms-item:first-child {
+    border-color: var(--green);
+    background: rgba(16, 185, 129, 0.05);
+}
+.backup-sms-item:first-child .sms-header .sender {
+    color: var(--green);
 }
 .backup-sms-item .sms-header {
     display: flex;
@@ -768,6 +777,10 @@ body {
 .backup-sms-item .sms-header .sender {
     color: var(--gold-light);
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
 }
 .backup-sms-item .sms-body {
     font-size: 12px;

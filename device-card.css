@@ -93,7 +93,7 @@
 .device-card-premium .device-name-premium {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
 }
 
@@ -132,8 +132,18 @@
     font-family: 'Inter', sans-serif;
 }
 
-.device-card-premium .device-name-premium .serial-badge-premium i {
-    font-size: 10px;
+.device-card-premium .device-name-premium .fav-star-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0 4px;
+    transition: all 0.3s ease;
+    color: var(--gold);
+}
+
+.device-card-premium .device-name-premium .fav-star-btn:hover {
+    transform: scale(1.3) rotate(20deg);
 }
 
 .device-card-premium .device-sub-info {
@@ -680,6 +690,9 @@
     .device-card-premium .swipe-delete-hint i {
         font-size: 14px;
     }
+    .device-card-premium .device-name-premium .fav-star-btn {
+        font-size: 14px;
+    }
 }
 
 @media (max-width: 400px) {
@@ -703,5 +716,8 @@
     .device-card-premium .action-btn-premium .btn-badge {
         font-size: 8px;
         padding: 0 6px;
+    }
+    .device-card-premium .device-name-premium .fav-star-btn {
+        font-size: 12px;
     }
 }

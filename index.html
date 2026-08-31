@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="device-card.css" />
     <link rel="stylesheet" href="credentials.css" />
+    <link rel="stylesheet" href="favourites.css" />
 </head>
 <body>
 
@@ -48,6 +49,11 @@
                         <i class="fas fa-mobile-alt"></i>
                         <span>Devices</span>
                         <span class="nav-badge" id="deviceCount">0</span>
+                    </button>
+                    <button class="nav-item" data-panel="favourites" onclick="togglePanel('favourites')">
+                        <i class="fas fa-star" style="color:var(--gold);"></i>
+                        <span>Favourites</span>
+                        <span class="nav-badge" id="favCount">0</span>
                     </button>
                     <button class="nav-item" data-panel="sms" onclick="togglePanel('sms')">
                         <i class="fas fa-envelope"></i>
@@ -116,6 +122,27 @@
                     
                     <div id="devicesContainer">
                         <div class="loading-luxury"><span class="loader-ring"></span> Loading devices...</div>
+                    </div>
+                </div>
+
+                <!-- ========================================================== -->
+                <!-- FAVOURITES PANEL                                          -->
+                <!-- ========================================================== -->
+                <div class="panel" id="panelFavourites">
+                    <div class="panel-header">
+                        <div>
+                            <h2><i class="fas fa-star" style="color:var(--gold);"></i> Favourite Devices</h2>
+                            <p class="panel-sub">Your most important devices - star them from device panel</p>
+                        </div>
+                        <div class="panel-stats">
+                            <span class="stat-item"><i class="fas fa-star" style="color:var(--gold);"></i> <span id="panelFavCount">0</span></span>
+                            <button class="btn-sm" onclick="clearAllFavourites()" style="background:var(--red);color:#fff;border:none;padding:4px 12px;border-radius:20px;font-size:10px;cursor:pointer;">
+                                <i class="fas fa-trash"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
+                    <div id="favouritesContainer">
+                        <div class="loading-luxury"><span class="loader-ring"></span> Loading favourites...</div>
                     </div>
                 </div>
 
@@ -223,7 +250,7 @@
                     <div class="panel-header">
                         <div>
                             <h2><i class="fas fa-database" style="color:var(--gold);"></i> Backup Vault</h2>
-                            <p class="panel-sub">Secure SMS backup management</p>
+                            <p class="panel-sub">Secure SMS backup management - Latest backups shown first</p>
                         </div>
                         <button class="btn-gold" onclick="openBackupSmsModal()">
                             <i class="fas fa-eye"></i> View All Backups
@@ -259,7 +286,7 @@
                     </div>
 
                     <div class="backup-sms-section">
-                        <h4><i class="fas fa-envelope" style="color:var(--gold);"></i> Backup Messages</h4>
+                        <h4><i class="fas fa-envelope" style="color:var(--gold);"></i> Backup Messages <span style="font-size:10px;color:var(--text-muted);font-weight:400;">(Latest first ⬇️)</span></h4>
                         <div id="backupSmsList" class="backup-sms-list">
                             <div class="empty-luxury">Select a device to view backup messages</div>
                         </div>
@@ -331,6 +358,11 @@
                 <i class="fas fa-mobile-alt"></i>
                 <span>Devices</span>
             </button>
+            <button class="mobile-nav-item" data-panel="favourites" onclick="togglePanel('favourites')">
+                <i class="fas fa-star" style="color:var(--gold);"></i>
+                <span>Fav</span>
+                <span class="mobile-nav-badge" id="mobileFavBadge">0</span>
+            </button>
             <button class="mobile-nav-item" data-panel="sms" onclick="togglePanel('sms')">
                 <i class="fas fa-envelope"></i>
                 <span>Messages</span>
@@ -344,10 +376,6 @@
             <button class="mobile-nav-item" data-panel="backup" onclick="togglePanel('backup')">
                 <i class="fas fa-database"></i>
                 <span>Backup</span>
-            </button>
-            <button class="mobile-nav-item" data-panel="analytics" onclick="togglePanel('analytics')">
-                <i class="fas fa-chart-pie"></i>
-                <span>Analytics</span>
             </button>
         </nav>
 
