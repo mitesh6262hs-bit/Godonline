@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* style.css - Luxury Interior Panel                            */
+/* style.css - Luxury Interior Panel - Fixed                    */
 /* ============================================================ */
 
 :root {
@@ -353,7 +353,7 @@ body {
     }
 }
 
-/* ===== DEVICE CARDS ===== */
+/* ===== DEVICE CARDS - NO AUTO REFRESH JITTER ===== */
 .device-card-luxury {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -361,7 +361,9 @@ body {
     padding: 16px 20px;
     margin-bottom: 10px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    will-change: transform;
+    transform: translateZ(0);
 }
 .device-card-luxury:hover {
     border-color: rgba(212, 175, 55, 0.3);
@@ -417,24 +419,37 @@ body {
     margin-top: 14px;
     padding-top: 14px;
     border-top: 1px solid var(--border-color);
-    animation: expandBody 0.3s ease;
+}
+.device-card-luxury.expanded .device-body {
+    display: block;
+    animation: expandBody 0.25s ease;
 }
 @keyframes expandBody {
     from {
         opacity: 0;
-        transform: translateY(-8px);
+        transform: translateY(-5px);
     }
     to {
         opacity: 1;
         transform: translateY(0);
     }
 }
-.device-card-luxury.expanded .device-body {
-    display: block;
-}
 .device-card-luxury.expanded {
     border-color: var(--gold);
     box-shadow: 0 0 30px rgba(212, 175, 55, 0.05);
+}
+
+/* ===== DEVICE SERIAL NUMBER BADGE ===== */
+.device-serial-badge {
+    display: inline-block;
+    background: rgba(212, 175, 55, 0.12);
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    margin-left: 6px;
 }
 
 /* ===== DEVICE ACTIONS ===== */
@@ -499,10 +514,10 @@ body {
     padding: 12px;
     margin-top: 10px;
     border: 1px solid var(--border-color);
-    animation: expandBody 0.25s ease;
 }
 .section-box.active {
     display: block;
+    animation: expandBody 0.2s ease;
 }
 .section-box h4 {
     font-size: 13px;
