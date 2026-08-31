@@ -1,5 +1,5 @@
 <!-- ============================================================ -->
-<!-- index.html - Complete with Search, Delete SMS, No Blink     -->
+<!-- index.html - Complete with Search, Delete SMS, Delete Credentials -->
 <!-- ============================================================ -->
 <!DOCTYPE html>
 <html lang="en">
@@ -97,10 +97,13 @@
                         </button>
                     </div>
                     
-                    <!-- Delete All SMS Button -->
-                    <div style="margin-bottom:12px;display:flex;justify-content:flex-end;">
+                    <!-- Delete Buttons -->
+                    <div style="margin-bottom:12px;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
                         <button class="btn-delete-all" onclick="deleteAllSms()">
                             <i class="fas fa-trash-alt"></i> Delete All SMS
+                        </button>
+                        <button class="btn-delete-all" onclick="deleteAllCredentials()" style="background:rgba(139,92,246,0.1);border-color:rgba(139,92,246,0.2);color:var(--purple);">
+                            <i class="fas fa-key"></i> Delete All Credentials
                         </button>
                     </div>
                     
