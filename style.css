@@ -115,7 +115,32 @@ body {
 .top-right {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+}
+
+/* ===== REFRESH BUTTON ===== */
+.btn-refresh {
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    color: var(--gold);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+.btn-refresh:hover {
+    background: var(--gold);
+    color: #0c0e14;
+    transform: rotate(180deg);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+}
+.btn-refresh:active {
+    transform: rotate(360deg) scale(0.9);
 }
 
 .connection-status {
@@ -1227,6 +1252,7 @@ body {
     .sms-card-luxury .sms-header { flex-direction: column; align-items: flex-start; }
     .backup-grid { grid-template-columns: 1fr; gap: 10px; }
     .backup-status-card { grid-template-columns: 1fr 1fr; padding: 10px; }
+    .btn-refresh { width: 30px; height: 30px; font-size: 13px; }
 }
 
 @media (max-width: 400px) {
@@ -1239,6 +1265,7 @@ body {
     .fab-main { width: 48px; height: 48px; font-size: 20px; }
     .fab-action { width: 38px; height: 38px; font-size: 14px; }
     .fab-container { bottom: 75px; right: 12px; }
+    .btn-refresh { width: 26px; height: 26px; font-size: 11px; }
 }
 
 .text-gold { color: var(--gold); }
