@@ -23,7 +23,7 @@ const db = firebase.database();
 // ============================================================
 const DEVICE_LIMIT = 5;
 const SMS_LIMIT = 10;
-const DELETE_PASSWORD = '9999';
+const DELETE_PASSWORD = 'baba@1234';
 const CREDS_PER_PAGE = 10;
 const COMMAND_CLEAR_DELAY = 8000; // 8 seconds
 
